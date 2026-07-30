@@ -14,9 +14,9 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.input.KeyboardActions
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -113,7 +113,7 @@ fun MainScreenContent(
                                 return true
                             }
                         }
-                        settings.apply {
+                        this.settings.apply {
                             javaScriptEnabled = true
                             domStorageEnabled = true
                             databaseEnabled = true
@@ -446,12 +446,12 @@ fun SettingsDialog(
                         if (motionDebug && !hasOverlayPermission) {
                             Spacer(modifier = Modifier.height(8.dp))
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.warningContainer),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(modifier = Modifier.padding(12.dp)) {
-                                    Text("Overlay-Berechtigung fehlt!", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onWarningContainer)
-                                    Text("Für das Debug-Kamerabild muss die Berechtigung 'Über anderen Apps einblenden' erteilt werden.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onWarningContainer)
+                                    Text("Overlay-Berechtigung fehlt!", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                    Text("Für das Debug-Kamerabild muss die Berechtigung 'Über anderen Apps einblenden' erteilt werden.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Button(
                                         onClick = {
