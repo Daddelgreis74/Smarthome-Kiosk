@@ -17,6 +17,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -56,10 +57,7 @@ fun MainScreenContent(
     var showPasswordPrompt by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
-
-    // Tap counting for hotspot
-    var lastTapTime by remember { mutableStateOf(0L) }
-    var tapCount by remember { mutableStateOf(0) }
+    var swipeAccumulatedDistance by remember { mutableStateOf(0f) }
 
     // Re-load WebView if settings URL changes
     LaunchedEffect(settings.dashboardUrl) {
@@ -178,26 +176,32 @@ fun MainScreenContent(
             )
         }
 
-        // Invisible Top-Right Hotspot for Settings (5 Taps)
+        // Invisible swipe-from-left-edge hotspot to open settings
         Box(
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .size(90.dp)
+                .align(Alignment.CenterStart)
+                .fillMaxHeight()
+                .width(35.dp)
                 .background(Color.Transparent)
                 .pointerInput(Unit) {
-                    detectTapGestures {
-                        val now = System.currentTimeMillis()
-                        if (now - lastTapTime < 500) {
-                            tapCount++
-                        } else {
-                            tapCount = 1
+                    detectHorizontalDragGestures(
+                        onDragStart = {
+                            swipeAccumulatedDistance = 0f
+                        },
+                        onDragEnd = {
+                            if (swipeAccumulatedDistance > 250f) { // Swipe of ~2.5 cm to the right
+                                showPasswordPrompt = true
+                            }
+                            swipeAccumulatedDistance = 0f
+                        },
+                        onDragCancel = {
+                            swipeAccumulatedDistance = 0f
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            swipeAccumulatedDistance += dragAmount
                         }
-                        lastTapTime = now
-                        if (tapCount >= 5) {
-                            tapCount = 0
-                            showPasswordPrompt = true
-                        }
-                    }
+                    )
                 }
         )
 
