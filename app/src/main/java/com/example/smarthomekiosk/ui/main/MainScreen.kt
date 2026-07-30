@@ -244,6 +244,7 @@ fun MainScreenContent(
                         onDragStart = {
                             swipeAccumulatedDistance = 0f
                         },
+                        onDragEnd = {
                             if (swipeAccumulatedDistance > 250f) { // Swipe of ~2.5 cm to the right
                                 if (settings.pinProtectionEnabled) {
                                     showPasswordPrompt = true
