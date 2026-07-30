@@ -18,7 +18,11 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.media.MediaPlayer
+import android.util.Base64
 import android.util.Log
+import java.io.File
+import java.io.FileOutputStream
 import java.util.Locale
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
@@ -192,6 +196,12 @@ fun MainScreenContent(
                         addJavascriptInterface(
                             AndroidSpeechSynthesisInterface(ctx) { webViewRef },
                             "AndroidSpeechSynthesis"
+                        )
+
+                        // Register Audio Player Interface (Blob Audio Fix for ElevenLabs)
+                        addJavascriptInterface(
+                            AndroidAudioPlayerInterface(ctx) { webViewRef },
+                            "AndroidAudioPlayer"
                         )
 
                         this.settings.apply {
@@ -923,8 +933,177 @@ fun injectKioskPolyfills(view: WebView?) {
                     if (window._activeUtterances) delete window._activeUtterances[id];
                 };
             }
+
+            // HTML5 Audio Blob Override (Fix for ElevenLabs playbacks in Android WebView)
+            if (window.AndroidAudioPlayer) {
+                const OriginalAudio = window.Audio;
+                class WebviewAudioShim {
+                    constructor(src) {
+                        this._src = src || '';
+                        this.onended = null;
+                        this.onerror = null;
+                        this._id = Math.random().toString(36).substring(2);
+                        
+                        window._activeAudioShims = window._activeAudioShims || {};
+                        window._activeAudioShims[this._id] = this;
+                        
+                        if (src) {
+                            this.src = src;
+                        }
+                    }
+                    get src() {
+                        return this._src;
+                    }
+                    set src(val) {
+                        this._src = val;
+                        if (val.startsWith('blob:')) {
+                            const shim = this;
+                            fetch(val)
+                                .then(r => r.blob())
+                                .then(blob => {
+                                    const reader = new FileReader();
+                                    reader.onloadend = function() {
+                                        const base64data = reader.result.split(',')[1];
+                                        shim._base64 = base64data;
+                                    };
+                                    reader.readAsDataURL(blob);
+                                })
+                                .catch(e => {
+                                    console.error("Error reading blob audio:", e);
+                                    if (shim.onerror) shim.onerror(e);
+                                });
+                        }
+                    }
+                    play() {
+                        const shim = this;
+                        if (this._src.startsWith('blob:')) {
+                            const playNative = () => {
+                                if (shim._base64) {
+                                    window.AndroidAudioPlayer.playBase64(shim._id, shim._base64);
+                                } else {
+                                    setTimeout(playNative, 50);
+                                }
+                            };
+                            playNative();
+                            return Promise.resolve();
+                        } else {
+                            this._nativeAudio = new OriginalAudio(this._src);
+                            this._nativeAudio.onended = () => {
+                                if (shim.onended) shim.onended();
+                            };
+                            this._nativeAudio.onerror = (e) => {
+                                if (shim.onerror) shim.onerror(e);
+                            };
+                            return this._nativeAudio.play();
+                        }
+                    }
+                    pause() {
+                        if (this._src.startsWith('blob:')) {
+                            window.AndroidAudioPlayer.pause(this._id);
+                        } else if (this._nativeAudio) {
+                            this._nativeAudio.pause();
+                        }
+                    }
+                    get currentTime() {
+                        return 0;
+                    }
+                    set currentTime(val) {}
+                }
+                
+                window.Audio = WebviewAudioShim;
+                
+                window._onAudioEnded = function(id) {
+                    const shim = window._activeAudioShims ? window._activeAudioShims[id] : null;
+                    if (shim && shim.onended) {
+                        try { shim.onended(); } catch(e) { console.error(e); }
+                    }
+                    if (window._activeAudioShims) delete window._activeAudioShims[id];
+                };
+                
+                window._onAudioError = function(id) {
+                    const shim = window._activeAudioShims ? window._activeAudioShims[id] : null;
+                    if (shim && shim.onerror) {
+                        try { shim.onerror(); } catch(e) { console.error(e); }
+                    }
+                    if (window._activeAudioShims) delete window._activeAudioShims[id];
+                };
+            }
         })();
     """.trimIndent()
     view?.evaluateJavascript(script, null)
+}
+class AndroidAudioPlayerInterface(
+    private val context: Context,
+    private val webViewProvider: () -> WebView?
+) {
+    private var mediaPlayer: MediaPlayer? = null
+    private var activeId: String? = null
+
+    @JavascriptInterface
+    fun playBase64(id: String, base64Data: String) {
+        (context as? Activity)?.runOnUiThread {
+            try {
+                stopPlaying()
+                
+                activeId = id
+                val audioBytes = Base64.decode(base64Data, Base64.DEFAULT)
+                
+                // Save to a temporary file
+                val tempFile = File.createTempFile("kiosk_audio_", ".mp3", context.cacheDir)
+                tempFile.deleteOnExit()
+                
+                FileOutputStream(tempFile).use { fos ->
+                    fos.write(audioBytes)
+                }
+                
+                mediaPlayer = MediaPlayer().apply {
+                    setDataSource(tempFile.absolutePath)
+                    setOnCompletionListener {
+                        sendToJs("window._onAudioEnded('$id')")
+                        tempFile.delete()
+                        stopPlaying()
+                    }
+                    setOnErrorListener { _, _, _ ->
+                        sendToJs("window._onAudioError('$id')")
+                        tempFile.delete()
+                        stopPlaying()
+                        true
+                    }
+                    prepare()
+                    start()
+                }
+            } catch (e: Exception) {
+                Log.e("AudioInterface", "Error playing base64 audio", e)
+                sendToJs("window._onAudioError('$id')")
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun pause(id: String) {
+        (context as? Activity)?.runOnUiThread {
+            if (activeId == id) {
+                stopPlaying()
+            }
+        }
+    }
+
+    private fun stopPlaying() {
+        try {
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+        } catch (e: Exception) {
+            // Ignore
+        }
+        mediaPlayer = null
+        activeId = null
+    }
+
+    private fun sendToJs(script: String) {
+        val webView = webViewProvider()
+        webView?.post {
+            webView.evaluateJavascript(script, null)
+        }
+    }
 }
 
