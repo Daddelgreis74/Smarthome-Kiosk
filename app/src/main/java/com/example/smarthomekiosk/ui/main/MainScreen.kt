@@ -13,6 +13,7 @@ import android.os.Build
 import android.provider.Settings
 import android.view.ViewGroup
 import android.webkit.SslErrorHandler
+import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -154,6 +155,7 @@ fun MainScreenContent(
                                 }
                             }
                         }
+                        webChromeClient = WebChromeClient()
                         this.settings.apply {
                             javaScriptEnabled = true
                             domStorageEnabled = true
@@ -164,7 +166,7 @@ fun MainScreenContent(
                             mediaPlaybackRequiresUserGesture = false
                             
                             // Enable mixed content (http on https dashboard if needed)
-                            mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                         }
                         webViewRef = this
                         loadUrl(currentUrl)
