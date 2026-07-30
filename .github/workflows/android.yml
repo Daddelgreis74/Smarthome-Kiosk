@@ -28,14 +28,19 @@ jobs:
     - name: Build with Gradle
       run: ./gradlew assembleDebug assembleRelease --no-daemon
 
+    - name: Rename APKs
+      run: |
+        mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/neo-kiosk.apk
+        mv app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/neo-kiosk-release-unsigned.apk
+
     - name: Upload Debug APK
       uses: actions/upload-artifact@v4
       with:
-        name: app-debug
-        path: app/build/outputs/apk/debug/app-debug.apk
+        name: neo-kiosk
+        path: app/build/outputs/apk/debug/neo-kiosk.apk
 
     - name: Upload Release APK (Unsigned)
       uses: actions/upload-artifact@v4
       with:
-        name: app-release-unsigned
-        path: app/build/outputs/apk/release/app-release-unsigned.apk
+        name: neo-kiosk-release-unsigned
+        path: app/build/outputs/apk/release/neo-kiosk-release-unsigned.apk

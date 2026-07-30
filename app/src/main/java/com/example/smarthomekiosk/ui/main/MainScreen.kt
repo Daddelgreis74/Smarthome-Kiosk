@@ -16,7 +16,10 @@ import android.provider.Settings
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.util.Log
+import java.util.Locale
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
@@ -165,12 +168,12 @@ fun MainScreenContent(
 
                             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                                 super.onPageStarted(view, url, favicon)
-                                injectSpeechRecognitionPolyfill(view)
+                                injectKioskPolyfills(view)
                             }
 
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
-                                injectSpeechRecognitionPolyfill(view)
+                                injectKioskPolyfills(view)
                             }
                         }
                         webChromeClient = object : WebChromeClient() {
@@ -183,6 +186,12 @@ fun MainScreenContent(
                         addJavascriptInterface(
                             AndroidSpeechRecognitionInterface(ctx) { webViewRef },
                             "AndroidSpeechRecognition"
+                        )
+
+                        // Register Speech Synthesis Interface
+                        addJavascriptInterface(
+                            AndroidSpeechSynthesisInterface(ctx) { webViewRef },
+                            "AndroidSpeechSynthesis"
                         )
 
                         this.settings.apply {
@@ -723,9 +732,75 @@ class AndroidSpeechRecognitionInterface(
     }
 }
 
-fun injectSpeechRecognitionPolyfill(view: WebView?) {
+class AndroidSpeechSynthesisInterface(
+    private val context: Context,
+    private val webViewProvider: () -> WebView?
+) {
+    private var tts: TextToSpeech? = null
+    private var isInitialized = false
+
+    init {
+        tts = TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                isInitialized = true
+                tts?.language = Locale.GERMAN
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun speak(id: String, text: String, lang: String) {
+        (context as? Activity)?.runOnUiThread {
+            if (!isInitialized || tts == null) {
+                sendToJs("window._onSpeechError('$id')")
+                return@runOnUiThread
+            }
+            
+            tts?.language = Locale.forLanguageTag(lang)
+            
+            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) {
+                    sendToJs("window._onSpeechStart('$id')")
+                }
+
+                override fun onDone(utteranceId: String?) {
+                    sendToJs("window._onSpeechEnd('$id')")
+                }
+
+                @Deprecated("Deprecated in Java")
+                override fun onError(utteranceId: String?) {
+                    sendToJs("window._onSpeechError('$id')")
+                }
+            })
+
+            val params = Bundle().apply {
+                putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, id)
+            }
+            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, id)
+        }
+    }
+
+    @JavascriptInterface
+    fun cancel() {
+        (context as? Activity)?.runOnUiThread {
+            if (isInitialized) {
+                tts?.stop()
+            }
+        }
+    }
+
+    private fun sendToJs(script: String) {
+        val webView = webViewProvider()
+        webView?.post {
+            webView.evaluateJavascript(script, null)
+        }
+    }
+}
+
+fun injectKioskPolyfills(view: WebView?) {
     val script = """
         (function() {
+            // Speech Recognition Polyfill
             if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
                 class SpeechRecognitionShim {
                     constructor() {
@@ -789,6 +864,63 @@ fun injectSpeechRecognitionPolyfill(view: WebView?) {
                     if (instance && instance.onerror) {
                         try { instance.onerror({ error: errorMsg }); } catch(e) { console.error(e); }
                     }
+                };
+            }
+
+            // Speech Synthesis Polyfill/Override
+            if (window.AndroidSpeechSynthesis) {
+                const nativeSpeak = function(utterance) {
+                    const id = Math.random().toString(36).substring(2);
+                    window._activeUtterances = window._activeUtterances || {};
+                    window._activeUtterances[id] = utterance;
+                    
+                    const text = utterance.text;
+                    const lang = utterance.lang || 'de-DE';
+                    
+                    window.AndroidSpeechSynthesis.speak(id, text, lang);
+                };
+                
+                const nativeCancel = function() {
+                    window.AndroidSpeechSynthesis.cancel();
+                };
+                
+                if (window.speechSynthesis) {
+                    window.speechSynthesis.speak = nativeSpeak;
+                    window.speechSynthesis.cancel = nativeCancel;
+                } else {
+                    window.speechSynthesis = {
+                        speak: nativeSpeak,
+                        cancel: nativeCancel,
+                        getVoices: function() {
+                            return [
+                                { name: 'System Deutsch', lang: 'de-DE', default: true, localService: true },
+                                { name: 'System English', lang: 'en-US', default: false, localService: true }
+                            ];
+                        }
+                    };
+                }
+                
+                window._onSpeechStart = function(id) {
+                    const u = window._activeUtterances ? window._activeUtterances[id] : null;
+                    if (u && u.onstart) {
+                        try { u.onstart(); } catch(e) { console.error(e); }
+                    }
+                };
+                
+                window._onSpeechEnd = function(id) {
+                    const u = window._activeUtterances ? window._activeUtterances[id] : null;
+                    if (u && u.onend) {
+                        try { u.onend(); } catch(e) { console.error(e); }
+                    }
+                    if (window._activeUtterances) delete window._activeUtterances[id];
+                };
+                
+                window._onSpeechError = function(id) {
+                    const u = window._activeUtterances ? window._activeUtterances[id] : null;
+                    if (u && u.onerror) {
+                        try { u.onerror(); } catch(e) { console.error(e); }
+                    }
+                    if (window._activeUtterances) delete window._activeUtterances[id];
                 };
             }
         })();
