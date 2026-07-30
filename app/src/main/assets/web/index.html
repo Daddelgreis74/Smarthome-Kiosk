@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smarthome Kiosk Control</title>
+    <link rel="stylesheet" href="index.css">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <!-- Background glowing shapes for premium styling -->
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+
+    <div class="app-container">
+        <!-- 1. LOGIN SCREEN -->
+        <div id="login-screen" class="glass-card login-card">
+            <h2>Kiosk Login</h2>
+            <p class="subtitle">Bitte gib das Kiosk-API-Passwort ein, um fortzufahren.</p>
+            <div class="input-group">
+                <input type="password" id="api-password" placeholder="API Passwort" autofocus>
+                <span class="focus-border"></span>
+            </div>
+            <p id="login-error" class="error-msg"></p>
+            <button id="login-btn" class="btn primary-btn">Anmelden</button>
+        </div>
+
+        <!-- 2. DASHBOARD PANEL -->
+        <div id="dashboard-panel" class="dashboard-panel hidden">
+            <!-- Header -->
+            <header class="dashboard-header glass-card">
+                <div class="header-left">
+                    <h1>Smarthome Kiosk</h1>
+                    <div class="status-indicator">
+                        <span class="dot active"></span>
+                        <span class="status-text">Verbunden</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button id="logout-btn" class="btn secondary-btn">Abmelden</button>
+                </div>
+            </header>
+
+            <!-- Main Content Grid -->
+            <main class="dashboard-grid">
+                <!-- Card 1: System Status -->
+                <section class="glass-card grid-card status-card">
+                    <h3>Systemstatus</h3>
+                    <div class="status-items">
+                        <div class="status-item">
+                            <span class="label">Display:</span>
+                            <span id="stat-screen" class="badge">Laden...</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="label">Batterie:</span>
+                            <div class="battery-container">
+                                <div class="battery-body">
+                                    <div id="battery-level-bar" class="battery-level"></div>
+                                </div>
+                                <span id="stat-battery" class="value">Laden...</span>
+                                <span id="charging-icon" class="charging-icon hidden">⚡</span>
+                            </div>
+                        </div>
+                        <div class="status-item">
+                            <span class="label">Freier Speicher:</span>
+                            <span id="stat-ram" class="value">Laden...</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="label">Tablet-Modell:</span>
+                            <span id="stat-model" class="value">Laden...</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Card 2: Display Control -->
+                <section class="glass-card grid-card control-card">
+                    <h3>Display Steuerung</h3>
+                    <p class="card-desc">Schalte den Bildschirm des Tablets ein oder aus.</p>
+                    <div class="btn-group">
+                        <button id="screen-on-btn" class="btn success-btn">Bildschirm Ein</button>
+                        <button id="screen-off-btn" class="btn danger-btn">Bildschirm Aus</button>
+                    </div>
+                </section>
+
+                <!-- Card 3: Audio Control -->
+                <section class="glass-card grid-card audio-card">
+                    <h3>Lautstärke</h3>
+                    <p class="card-desc">Passe die Musik- und Medienlautstärke an.</p>
+                    <div class="volume-slider-container">
+                        <span class="volume-icon">🔊</span>
+                        <input type="range" id="volume-slider" min="0" max="100" value="50">
+                        <span id="volume-val" class="volume-val-text">50%</span>
+                    </div>
+                    <div class="btn-group-center">
+                        <button id="volume-mute-btn" class="btn secondary-btn">Stummschalten</button>
+                    </div>
+                </section>
+
+                <!-- Card 4: Text-To-Speech Console -->
+                <section class="glass-card grid-card tts-card">
+                    <h3>Sprachausgabe (TTS)</h3>
+                    <p class="card-desc">Lass das Tablet eine Nachricht vorlesen.</p>
+                    <div class="input-group">
+                        <textarea id="tts-text" placeholder="Gib hier einen Text ein..." rows="3"></textarea>
+                    </div>
+                    <div class="preset-phrases">
+                        <span class="preset-tag" data-phrase="Es hat an der Tür geklingelt!">🔔 Klingel</span>
+                        <span class="preset-tag" data-phrase="Das Essen ist fertig, bitte kommen!">🍽️ Essen fertig</span>
+                        <span class="preset-tag" data-phrase="Achtung! Ein Fenster im Erdgeschoss steht noch offen!">⚠️ Fenster offen</span>
+                        <span class="preset-tag" data-phrase="Guten Morgen Steffen, das Dashboard ist bereit!">☀️ Guten Morgen</span>
+                    </div>
+                    <button id="tts-send-btn" class="btn primary-btn w-100">Nachricht vorlesen</button>
+                </section>
+
+                <!-- Card 5: Kiosk Operations -->
+                <section class="glass-card grid-card ops-card">
+                    <h3>System Aktionen</h3>
+                    <p class="card-desc">Steuere das Kiosk-System und die Web-Anzeige.</p>
+                    <button id="reload-webview-btn" class="btn warning-btn w-100">WebView neu laden</button>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="index.js"></script>
+</body>
+</html>

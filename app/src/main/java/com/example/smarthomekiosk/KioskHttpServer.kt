@@ -1,5 +1,6 @@
 package com.example.smarthomekiosk
 
+import android.content.Context
 import android.util.Log
 import org.json.JSONObject
 import java.io.BufferedReader
@@ -12,6 +13,7 @@ import java.util.Locale
 import kotlin.concurrent.thread
 
 class KioskHttpServer(
+    private val context: Context,
     private val port: Int,
     private val password: String,
     private val listener: KioskCommandListener
@@ -25,6 +27,7 @@ class KioskHttpServer(
         fun onSpeak(text: String)
         fun onSetVolume(volume: Int)
         fun getDeviceInfoJson(): String
+        fun onReloadWebView()
     }
 
     fun start() {
@@ -120,6 +123,35 @@ class KioskHttpServer(
                 }
             }
 
+            // Serve Static Web Assets
+            if (method == "GET") {
+                when (path) {
+                    "/" -> {
+                        serveAsset(output, "web/index.html", "text/html; charset=UTF-8")
+                        return
+                    }
+                    "/index.html" -> {
+                        serveAsset(output, "web/index.html", "text/html; charset=UTF-8")
+                        return
+                    }
+                    "/index.css" -> {
+                        serveAsset(output, "web/index.css", "text/css; charset=UTF-8")
+                        return
+                    }
+                    "/index.js" -> {
+                        serveAsset(output, "web/index.js", "application/javascript; charset=UTF-8")
+                        return
+                    }
+                    "/favicon.ico" -> {
+                        val response = "HTTP/1.1 204 No Content\r\n" +
+                                "Connection: close\r\n\r\n"
+                        output.write(response.toByteArray(Charsets.UTF_8))
+                        output.flush()
+                        return
+                    }
+                }
+            }
+
             // Handle Preflight OPTIONS request (CORS)
             if (method == "OPTIONS") {
                 sendCorsResponse(output)
@@ -186,6 +218,10 @@ class KioskHttpServer(
                     val info = listener.getDeviceInfoJson()
                     sendResponse(output, 200, "OK", info)
                 }
+                path == "/api/webview/reload" && method == "POST" -> {
+                    listener.onReloadWebView()
+                    sendResponse(output, 200, "OK", "{\"success\":true}")
+                }
                 else -> {
                     sendResponse(output, 404, "Not Found", "{\"error\":\"Endpoint not found or method not allowed\"}")
                 }
@@ -227,5 +263,27 @@ class KioskHttpServer(
                 "Connection: close\r\n\r\n"
         output.write(response.toByteArray(Charsets.UTF_8))
         output.flush()
+    }
+
+    private fun serveAsset(output: OutputStream, assetPath: String, contentType: String) {
+        try {
+            context.assets.open(assetPath).use { inputStream ->
+                val size = inputStream.available()
+                val buffer = ByteArray(size)
+                inputStream.read(buffer)
+                
+                val response = "HTTP/1.1 200 OK\r\n" +
+                        "Content-Type: $contentType\r\n" +
+                        "Content-Length: $size\r\n" +
+                        "Access-Control-Allow-Origin: *\r\n" +
+                        "Connection: close\r\n\r\n"
+                output.write(response.toByteArray(Charsets.UTF_8))
+                output.write(buffer)
+                output.flush()
+            }
+        } catch (e: Exception) {
+            Log.e("KioskHttpServer", "Error serving asset $assetPath", e)
+            sendResponse(output, 404, "Not Found", "{\"error\":\"Asset not found\"}")
+        }
     }
 }

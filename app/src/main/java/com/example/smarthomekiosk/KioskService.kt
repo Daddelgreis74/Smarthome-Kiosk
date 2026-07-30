@@ -21,6 +21,7 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
         const val ACTION_WAKE_UP = "com.example.smarthomekiosk.ACTION_WAKE_UP"
         const val ACTION_SLEEP = "com.example.smarthomekiosk.ACTION_SLEEP"
         const val ACTION_RESET_IDLE = "com.example.smarthomekiosk.ACTION_RESET_IDLE"
+        const val ACTION_RELOAD_WEBVIEW = "com.example.smarthomekiosk.ACTION_RELOAD_WEBVIEW"
         
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "kiosk_service_channel"
@@ -101,7 +102,7 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
 
     private fun startNetworkServices() {
         if (settings.kioskEnabled) {
-            httpServer = KioskHttpServer(settings.httpPort, settings.httpPassword, this).apply {
+            httpServer = KioskHttpServer(this, settings.httpPort, settings.httpPassword, this).apply {
                 start()
             }
             if (settings.mdnsEnabled) {
@@ -262,6 +263,11 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
             put("model", Build.MODEL)
         }
         return json.toString()
+    }
+
+    override fun onReloadWebView() {
+        Log.i("KioskService", "WebView Reload triggered")
+        sendBroadcast(Intent(ACTION_RELOAD_WEBVIEW))
     }
 
     // Notification Channel for Foreground Service

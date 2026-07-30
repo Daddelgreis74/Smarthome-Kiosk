@@ -2,9 +2,11 @@ package com.example.smarthomekiosk.ui.main
 
 import android.app.Activity
 import android.app.admin.DevicePolicyManager
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -62,6 +64,27 @@ fun MainScreenContent(
         if (settings.dashboardUrl.isNotEmpty() && currentUrl != settings.dashboardUrl) {
             currentUrl = settings.dashboardUrl
             webViewRef?.loadUrl(currentUrl)
+        }
+    }
+
+    // Register receiver to reload WebView via API command
+    DisposableEffect(webViewRef) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context, intent: Intent) {
+                if (intent.action == KioskService.ACTION_RELOAD_WEBVIEW) {
+                    webViewRef?.reload()
+                }
+            }
+        }
+        val filter = IntentFilter(KioskService.ACTION_RELOAD_WEBVIEW)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            context.registerReceiver(receiver, filter)
+        }
+        onDispose {
+            context.unregisterReceiver(receiver)
         }
     }
 
