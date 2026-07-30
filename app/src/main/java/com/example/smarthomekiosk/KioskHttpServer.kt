@@ -28,7 +28,7 @@ class KioskHttpServer(
         fun onSetVolume(volume: Int)
         fun getDeviceInfoJson(): String
         fun onReloadWebView()
-        fun onUpdateSettings(dashboardUrl: String?, ignoreSslErrors: Boolean?)
+        fun onUpdateSettings(dashboardUrl: String?, ignoreSslErrors: Boolean?, pinProtectionEnabled: Boolean?)
     }
 
     fun start() {
@@ -236,9 +236,15 @@ class KioskHttpServer(
                     } catch (e: Exception) {
                         queryParams["ignoreSslErrors"]?.toBooleanStrictOrNull()
                     }
+                    val pinProtection = try {
+                        val json = JSONObject(body.toString())
+                        if (json.has("pinProtectionEnabled")) json.getBoolean("pinProtectionEnabled") else null
+                    } catch (e: Exception) {
+                        queryParams["pinProtectionEnabled"]?.toBooleanStrictOrNull()
+                    }
 
-                    if (url != null || ignoreSsl != null) {
-                        listener.onUpdateSettings(url, ignoreSsl)
+                    if (url != null || ignoreSsl != null || pinProtection != null) {
+                        listener.onUpdateSettings(url, ignoreSsl, pinProtection)
                         sendResponse(output, 200, "OK", "{\"success\":true}")
                     } else {
                         sendResponse(output, 400, "Bad Request", "{\"error\":\"No settings parameters provided\"}")

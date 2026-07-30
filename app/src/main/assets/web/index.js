@@ -32,6 +32,7 @@ const toast = document.getElementById("toast");
 // Settings elements
 const kioskUrlInput = document.getElementById("kiosk-url-input");
 const kioskSslCheckbox = document.getElementById("kiosk-ssl-checkbox");
+const kioskPinCheckbox = document.getElementById("kiosk-pin-checkbox");
 const saveSettingsBtn = document.getElementById("save-settings-btn");
 
 // Initialize
@@ -95,7 +96,8 @@ reloadWebviewBtn.addEventListener("click", () => sendCommand("/api/webview/reloa
 saveSettingsBtn.addEventListener("click", () => {
     const url = kioskUrlInput.value.trim();
     const ignoreSsl = kioskSslCheckbox.checked;
-    sendCommand("/api/settings", { dashboardUrl: url, ignoreSslErrors: ignoreSsl })
+    const pinProtection = kioskPinCheckbox.checked;
+    sendCommand("/api/settings", { dashboardUrl: url, ignoreSslErrors: ignoreSsl, pinProtectionEnabled: pinProtection })
         .then(success => {
             if (success) {
                 showToast("Einstellungen erfolgreich gespeichert und Kiosk neu geladen.", "success");
@@ -236,6 +238,9 @@ function updateUI(data) {
     }
     if (document.activeElement !== kioskSslCheckbox) {
         kioskSslCheckbox.checked = !!data.ignoreSslErrors;
+    }
+    if (document.activeElement !== kioskPinCheckbox) {
+        kioskPinCheckbox.checked = !!data.pinProtectionEnabled;
     }
 }
 

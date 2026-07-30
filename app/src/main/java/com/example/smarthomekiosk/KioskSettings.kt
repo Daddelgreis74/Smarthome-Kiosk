@@ -19,6 +19,7 @@ class KioskSettings(context: Context) {
         const val KEY_HTTP_PASSWORD = "http_password"
         const val KEY_MDNS_ENABLED = "mdns_enabled"
         const val KEY_IGNORE_SSL_ERRORS = "ignore_ssl_errors"
+        const val KEY_PIN_PROTECTION_ENABLED = "pin_protection_enabled"
     }
 
     var dashboardUrl: String
@@ -68,4 +69,8 @@ class KioskSettings(context: Context) {
     var ignoreSslErrors: Boolean
         get() = prefs.getBoolean(KEY_IGNORE_SSL_ERRORS, true)
         set(value) = prefs.edit().putBoolean(KEY_IGNORE_SSL_ERRORS, value).apply()
+
+    var pinProtectionEnabled: Boolean
+        get() = prefs.getBoolean(KEY_PIN_PROTECTION_ENABLED, true)
+        set(value) = prefs.edit().putBoolean(KEY_PIN_PROTECTION_ENABLED, value).apply()
 }

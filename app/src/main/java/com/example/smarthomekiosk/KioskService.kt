@@ -263,6 +263,7 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
             put("model", Build.MODEL)
             put("dashboardUrl", settings.dashboardUrl)
             put("ignoreSslErrors", settings.ignoreSslErrors)
+            put("pinProtectionEnabled", settings.pinProtectionEnabled)
         }
         return json.toString()
     }
@@ -272,13 +273,16 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
         sendBroadcast(Intent(ACTION_RELOAD_WEBVIEW))
     }
 
-    override fun onUpdateSettings(dashboardUrl: String?, ignoreSslErrors: Boolean?) {
-        Log.i("KioskService", "Updating settings remotely: url=$dashboardUrl, ignoreSsl=$ignoreSslErrors")
+    override fun onUpdateSettings(dashboardUrl: String?, ignoreSslErrors: Boolean?, pinProtectionEnabled: Boolean?) {
+        Log.i("KioskService", "Updating settings remotely: url=$dashboardUrl, ignoreSsl=$ignoreSslErrors, pinProtection=$pinProtectionEnabled")
         if (dashboardUrl != null) {
             settings.dashboardUrl = dashboardUrl
         }
         if (ignoreSslErrors != null) {
             settings.ignoreSslErrors = ignoreSslErrors
+        }
+        if (pinProtectionEnabled != null) {
+            settings.pinProtectionEnabled = pinProtectionEnabled
         }
         sendBroadcast(Intent(ACTION_RELOAD_WEBVIEW))
     }

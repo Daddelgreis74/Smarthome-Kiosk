@@ -134,7 +134,13 @@ fun MainScreenContent(
                     Spacer(modifier = Modifier.height(16.dp))
                     Text("Bitte konfiguriere die Dashboard-URL in den Einstellungen.")
                     Spacer(modifier = Modifier.height(24.dp))
-                    Button(onClick = { showPasswordPrompt = true }) {
+                    Button(onClick = {
+                        if (settings.pinProtectionEnabled) {
+                            showPasswordPrompt = true
+                        } else {
+                            showSettings = true
+                        }
+                    }) {
                         Text("Einstellungen öffnen")
                     }
                 }
@@ -238,9 +244,12 @@ fun MainScreenContent(
                         onDragStart = {
                             swipeAccumulatedDistance = 0f
                         },
-                        onDragEnd = {
                             if (swipeAccumulatedDistance > 250f) { // Swipe of ~2.5 cm to the right
-                                showPasswordPrompt = true
+                                if (settings.pinProtectionEnabled) {
+                                    showPasswordPrompt = true
+                                } else {
+                                    showSettings = true
+                                }
                             }
                             swipeAccumulatedDistance = 0f
                         },
@@ -341,6 +350,10 @@ fun MainScreenContent(
                     webViewRef?.loadUrl(currentUrl)
                     // Restart Kiosk Service background engines
                     (context as? MainActivity)?.restartKioskService()
+                },
+                onReload = {
+                    showSettings = false
+                    webViewRef?.reload()
                 }
             )
         }
@@ -352,7 +365,8 @@ fun MainScreenContent(
 fun SettingsDialog(
     settings: KioskSettings,
     onDismiss: () -> Unit,
-    onSave: () -> Unit
+    onSave: () -> Unit,
+    onReload: () -> Unit
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
@@ -360,6 +374,7 @@ fun SettingsDialog(
     // Temporary settings state
     var url by remember { mutableStateOf(settings.dashboardUrl) }
     var password by remember { mutableStateOf(settings.settingsPassword) }
+    var pinProtectionEnabled by remember { mutableStateOf(settings.pinProtectionEnabled) }
     var kioskEnabled by remember { mutableStateOf(settings.kioskEnabled) }
     var screenOffMethod by remember { mutableStateOf(settings.screenOffMethod) }
     var timeoutMinutes by remember { mutableStateOf(settings.screenTimeoutMinutes.toString()) }
@@ -426,7 +441,25 @@ fun SettingsDialog(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                         modifier = Modifier.fillMaxWidth()
                     )
+                    
                     Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Seite neu laden")
+                            Text("Aktualisiert die geladene Webseite im Kiosk sofort", fontSize = 12.sp, color = Color.Gray)
+                        }
+                        Button(onClick = onReload) {
+                            Text("Neu laden")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     OutlinedTextField(
                         value = password,
                         onValueChange = { password = it },
@@ -434,6 +467,20 @@ fun SettingsDialog(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("PIN-Schutz für Einstellungen")
+                            Text("Fordert das Passwort an, wenn das Einstellungsmenü geöffnet wird", fontSize = 12.sp, color = Color.Gray)
+                        }
+                        Switch(checked = pinProtectionEnabled, onCheckedChange = { pinProtectionEnabled = it })
+                    }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
@@ -616,32 +663,49 @@ fun SettingsDialog(
                 // Footer Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Abbrechen")
-                    }
-                    Spacer(modifier = Modifier.width(16.dp))
+                    // Close App Button (left-aligned)
                     Button(
                         onClick = {
-                            // Save state to settings
-                            settings.dashboardUrl = url
-                            settings.settingsPassword = password
-                            settings.kioskEnabled = kioskEnabled
-                            settings.screenOffMethod = screenOffMethod
-                            settings.screenTimeoutMinutes = timeoutMinutes.toIntOrNull() ?: 0
-                            settings.motionDetectionEnabled = motionEnabled
-                            settings.motionDetectionSensitivity = sensitivity.toInt()
-                            settings.motionDetectionDebug = motionDebug
-                            settings.httpPort = apiPort.toIntOrNull() ?: 8080
-                            settings.httpPassword = apiPassword
-                            settings.mdnsEnabled = mdnsEnabled
-                            settings.ignoreSslErrors = ignoreSslErrors
-
-                            onSave()
-                        }
+                            (context as? Activity)?.finish()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                     ) {
-                        Text("Speichern & Schließen")
+                        Text("App schließen")
+                    }
+                    
+                    // Cancel & Save Buttons (right-aligned)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = onDismiss) {
+                            Text("Abbrechen")
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Button(
+                            onClick = {
+                                // Save state to settings
+                                settings.dashboardUrl = url
+                                settings.settingsPassword = password
+                                settings.pinProtectionEnabled = pinProtectionEnabled
+                                settings.kioskEnabled = kioskEnabled
+                                settings.screenOffMethod = screenOffMethod
+                                settings.screenTimeoutMinutes = timeoutMinutes.toIntOrNull() ?: 0
+                                settings.motionDetectionEnabled = motionEnabled
+                                settings.motionDetectionSensitivity = sensitivity.toInt()
+                                settings.motionDetectionDebug = motionDebug
+                                settings.httpPort = apiPort.toIntOrNull() ?: 8080
+                                settings.httpPassword = apiPassword
+                                settings.mdnsEnabled = mdnsEnabled
+                                settings.ignoreSslErrors = ignoreSslErrors
+
+                                onSave()
+                            }
+                        ) {
+                            Text("Speichern & Schließen")
+                        }
                     }
                 }
             }

@@ -127,9 +127,13 @@
                         <label for="kiosk-url-input" class="label-text" style="display:block; font-size:12px; color:var(--text-secondary); margin-bottom:8px;">Dashboard URL:</label>
                         <input type="text" id="kiosk-url-input" placeholder="http://192.168.178.101:8080" style="padding:10px; font-size:14px;">
                     </div>
-                    <div class="checkbox-group" style="display:flex; align-items:center; gap:8px; margin:16px 0;">
+                    <div class="checkbox-group" style="display:flex; align-items:center; gap:8px; margin:16px 0 8px 0;">
                         <input type="checkbox" id="kiosk-ssl-checkbox" style="width:16px; height:16px; accent-color:var(--primary); cursor:pointer;">
                         <label for="kiosk-ssl-checkbox" style="font-size:13px; color:var(--text-secondary); cursor:pointer;">SSL-Fehler ignorieren</label>
+                    </div>
+                    <div class="checkbox-group" style="display:flex; align-items:center; gap:8px; margin:0 0 16px 0;">
+                        <input type="checkbox" id="kiosk-pin-checkbox" style="width:16px; height:16px; accent-color:var(--primary); cursor:pointer;">
+                        <label for="kiosk-pin-checkbox" style="font-size:13px; color:var(--text-secondary); cursor:pointer;">PIN-Schutz für Einstellungen aktivieren</label>
                     </div>
                     <button id="save-settings-btn" class="btn primary-btn w-100" style="margin-top:auto;">Einstellungen speichern</button>
                 </section>
