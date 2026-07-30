@@ -7,10 +7,12 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.http.SslError
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.view.ViewGroup
+import android.webkit.SslErrorHandler
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -134,6 +136,15 @@ fun MainScreenContent(
                                     view?.loadUrl(url)
                                 }
                                 return true
+                            }
+
+                            override fun onReceivedSslError(
+                                view: WebView?,
+                                handler: SslErrorHandler?,
+                                error: SslError?
+                            ) {
+                                // Accept self-signed local SSL certificates
+                                handler?.proceed()
                             }
                         }
                         this.settings.apply {
