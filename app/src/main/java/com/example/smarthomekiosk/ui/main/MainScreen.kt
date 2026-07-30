@@ -7,16 +7,17 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Bitmap
 import android.net.http.SslError
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.provider.Settings
-import android.view.ViewGroup
-import android.app.Activity
-import android.graphics.Bitmap
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.util.Log
+import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.SslErrorHandler
@@ -675,9 +676,9 @@ class AndroidSpeechRecognitionInterface(
                         }
                         
                         override fun onResults(results: Bundle?) {
-                            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                            if (!matches.isNullOrEmpty()) {
-                                val text = matches[0].replace("'", "\\'")
+                            val speechResults = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            if (speechResults != null && speechResults.isNotEmpty()) {
+                                val text = speechResults[0].replace("'", "\\'")
                                 sendToJs("window._onSpeechRecognitionResult('$id', '$text')")
                             }
                             sendToJs("window._onSpeechRecognitionEnd('$id')")
