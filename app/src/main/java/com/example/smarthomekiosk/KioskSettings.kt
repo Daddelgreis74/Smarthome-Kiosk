@@ -18,6 +18,7 @@ class KioskSettings(context: Context) {
         const val KEY_HTTP_PORT = "http_port"
         const val KEY_HTTP_PASSWORD = "http_password"
         const val KEY_MDNS_ENABLED = "mdns_enabled"
+        const val KEY_IGNORE_SSL_ERRORS = "ignore_ssl_errors"
     }
 
     var dashboardUrl: String
@@ -63,4 +64,8 @@ class KioskSettings(context: Context) {
     var mdnsEnabled: Boolean
         get() = prefs.getBoolean(KEY_MDNS_ENABLED, true)
         set(value) = prefs.edit().putBoolean(KEY_MDNS_ENABLED, value).apply()
+
+    var ignoreSslErrors: Boolean
+        get() = prefs.getBoolean(KEY_IGNORE_SSL_ERRORS, true)
+        set(value) = prefs.edit().putBoolean(KEY_IGNORE_SSL_ERRORS, value).apply()
 }

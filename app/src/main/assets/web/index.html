@@ -118,6 +118,21 @@
                     <p class="card-desc">Steuere das Kiosk-System und die Web-Anzeige.</p>
                     <button id="reload-webview-btn" class="btn warning-btn w-100">WebView neu laden</button>
                 </section>
+
+                <!-- Card 6: Kiosk Settings -->
+                <section class="glass-card grid-card settings-card">
+                    <h3>Kiosk Einstellungen</h3>
+                    <p class="card-desc">Konfiguriere die Dashboard-URL und die SSL-Sicherheit des Tablets.</p>
+                    <div class="input-group">
+                        <label for="kiosk-url-input" class="label-text" style="display:block; font-size:12px; color:var(--text-secondary); margin-bottom:8px;">Dashboard URL:</label>
+                        <input type="text" id="kiosk-url-input" placeholder="http://192.168.178.101:8080" style="padding:10px; font-size:14px;">
+                    </div>
+                    <div class="checkbox-group" style="display:flex; align-items:center; gap:8px; margin:16px 0;">
+                        <input type="checkbox" id="kiosk-ssl-checkbox" style="width:16px; height:16px; accent-color:var(--primary); cursor:pointer;">
+                        <label for="kiosk-ssl-checkbox" style="font-size:13px; color:var(--text-secondary); cursor:pointer;">SSL-Fehler ignorieren</label>
+                    </div>
+                    <button id="save-settings-btn" class="btn primary-btn w-100" style="margin-top:auto;">Einstellungen speichern</button>
+                </section>
             </main>
         </div>
     </div>

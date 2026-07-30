@@ -261,12 +261,25 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
             put("appVersion", "1.0")
             put("androidVersion", Build.VERSION.RELEASE)
             put("model", Build.MODEL)
+            put("dashboardUrl", settings.dashboardUrl)
+            put("ignoreSslErrors", settings.ignoreSslErrors)
         }
         return json.toString()
     }
 
     override fun onReloadWebView() {
         Log.i("KioskService", "WebView Reload triggered")
+        sendBroadcast(Intent(ACTION_RELOAD_WEBVIEW))
+    }
+
+    override fun onUpdateSettings(dashboardUrl: String?, ignoreSslErrors: Boolean?) {
+        Log.i("KioskService", "Updating settings remotely: url=$dashboardUrl, ignoreSsl=$ignoreSslErrors")
+        if (dashboardUrl != null) {
+            settings.dashboardUrl = dashboardUrl
+        }
+        if (ignoreSslErrors != null) {
+            settings.ignoreSslErrors = ignoreSslErrors
+        }
         sendBroadcast(Intent(ACTION_RELOAD_WEBVIEW))
     }
 

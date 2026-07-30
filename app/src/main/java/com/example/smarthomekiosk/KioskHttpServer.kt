@@ -28,6 +28,7 @@ class KioskHttpServer(
         fun onSetVolume(volume: Int)
         fun getDeviceInfoJson(): String
         fun onReloadWebView()
+        fun onUpdateSettings(dashboardUrl: String?, ignoreSslErrors: Boolean?)
     }
 
     fun start() {
@@ -221,6 +222,27 @@ class KioskHttpServer(
                 path == "/api/webview/reload" && method == "POST" -> {
                     listener.onReloadWebView()
                     sendResponse(output, 200, "OK", "{\"success\":true}")
+                }
+                path == "/api/settings" && method == "POST" -> {
+                    val url = try {
+                        val json = JSONObject(body.toString())
+                        if (json.has("dashboardUrl")) json.getString("dashboardUrl") else null
+                    } catch (e: Exception) {
+                        queryParams["dashboardUrl"]
+                    }
+                    val ignoreSsl = try {
+                        val json = JSONObject(body.toString())
+                        if (json.has("ignoreSslErrors")) json.getBoolean("ignoreSslErrors") else null
+                    } catch (e: Exception) {
+                        queryParams["ignoreSslErrors"]?.toBooleanStrictOrNull()
+                    }
+
+                    if (url != null || ignoreSsl != null) {
+                        listener.onUpdateSettings(url, ignoreSsl)
+                        sendResponse(output, 200, "OK", "{\"success\":true}")
+                    } else {
+                        sendResponse(output, 400, "Bad Request", "{\"error\":\"No settings parameters provided\"}")
+                    }
                 }
                 else -> {
                     sendResponse(output, 404, "Not Found", "{\"error\":\"Endpoint not found or method not allowed\"}")

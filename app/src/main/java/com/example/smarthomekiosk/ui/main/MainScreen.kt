@@ -74,7 +74,13 @@ fun MainScreenContent(
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(ctx: Context, intent: Intent) {
                 if (intent.action == KioskService.ACTION_RELOAD_WEBVIEW) {
-                    webViewRef?.reload()
+                    val newUrl = settings.dashboardUrl
+                    if (newUrl.isNotEmpty()) {
+                        currentUrl = newUrl
+                        webViewRef?.loadUrl(newUrl)
+                    } else {
+                        webViewRef?.reload()
+                    }
                 }
             }
         }
@@ -143,8 +149,11 @@ fun MainScreenContent(
                                 handler: SslErrorHandler?,
                                 error: SslError?
                             ) {
-                                // Accept self-signed local SSL certificates
-                                handler?.proceed()
+                                if (settings.ignoreSslErrors) {
+                                    handler?.proceed()
+                                } else {
+                                    handler?.cancel()
+                                }
                             }
                         }
                         this.settings.apply {
@@ -273,11 +282,9 @@ fun MainScreenContent(
                 onDismiss = { showSettings = false },
                 onSave = {
                     showSettings = false
-                    // Reload web view if URL changed
-                    if (settings.dashboardUrl != currentUrl) {
-                        currentUrl = settings.dashboardUrl
-                        webViewRef?.loadUrl(currentUrl)
-                    }
+                    // Force reload/load of current URL with new settings
+                    currentUrl = settings.dashboardUrl
+                    webViewRef?.loadUrl(currentUrl)
                     // Restart Kiosk Service background engines
                     (context as? MainActivity)?.restartKioskService()
                 }
@@ -308,6 +315,7 @@ fun SettingsDialog(
     var apiPort by remember { mutableStateOf(settings.httpPort.toString()) }
     var apiPassword by remember { mutableStateOf(settings.httpPassword) }
     var mdnsEnabled by remember { mutableStateOf(settings.mdnsEnabled) }
+    var ignoreSslErrors by remember { mutableStateOf(settings.ignoreSslErrors) }
 
     // Device Admin status check
     val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
@@ -536,6 +544,18 @@ fun SettingsDialog(
                         }
                         Switch(checked = mdnsEnabled, onCheckedChange = { mdnsEnabled = it })
                     }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Selbstsignierte SSL-Zertifikate ignorieren")
+                            Text("Erlaubt das Laden von lokalen HTTPS-Seiten ohne gültiges Zertifikat", fontSize = 12.sp, color = Color.Gray)
+                        }
+                        Switch(checked = ignoreSslErrors, onCheckedChange = { ignoreSslErrors = it })
+                    }
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
@@ -562,6 +582,7 @@ fun SettingsDialog(
                             settings.httpPort = apiPort.toIntOrNull() ?: 8080
                             settings.httpPassword = apiPassword
                             settings.mdnsEnabled = mdnsEnabled
+                            settings.ignoreSslErrors = ignoreSslErrors
 
                             onSave()
                         }

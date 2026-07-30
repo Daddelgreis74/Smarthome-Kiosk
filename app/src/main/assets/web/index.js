@@ -29,6 +29,11 @@ const ttsSendBtn = document.getElementById("tts-send-btn");
 const reloadWebviewBtn = document.getElementById("reload-webview-btn");
 const toast = document.getElementById("toast");
 
+// Settings elements
+const kioskUrlInput = document.getElementById("kiosk-url-input");
+const kioskSslCheckbox = document.getElementById("kiosk-ssl-checkbox");
+const saveSettingsBtn = document.getElementById("save-settings-btn");
+
 // Initialize
 document.addEventListener("DOMContentLoaded", () => {
     // Check if password is saved in localStorage
@@ -86,6 +91,17 @@ document.querySelectorAll(".preset-tag").forEach(tag => {
 });
 
 reloadWebviewBtn.addEventListener("click", () => sendCommand("/api/webview/reload"));
+
+saveSettingsBtn.addEventListener("click", () => {
+    const url = kioskUrlInput.value.trim();
+    const ignoreSsl = kioskSslCheckbox.checked;
+    sendCommand("/api/settings", { dashboardUrl: url, ignoreSslErrors: ignoreSsl })
+        .then(success => {
+            if (success) {
+                showToast("Einstellungen erfolgreich gespeichert und Kiosk neu geladen.", "success");
+            }
+        });
+});
 
 // Functions
 function showLogin() {
@@ -213,6 +229,14 @@ function updateUI(data) {
 
     // Model and OS
     statModel.textContent = `${data.model} (Android ${data.androidVersion})`;
+
+    // Populate Settings URL and Checkbox if not active/focused
+    if (document.activeElement !== kioskUrlInput) {
+        kioskUrlInput.value = data.dashboardUrl || "";
+    }
+    if (document.activeElement !== kioskSslCheckbox) {
+        kioskSslCheckbox.checked = !!data.ignoreSslErrors;
+    }
 }
 
 async function sendCommand(endpoint, body = {}) {
