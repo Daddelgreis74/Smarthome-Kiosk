@@ -12,6 +12,12 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.view.ViewGroup
+import android.app.Activity
+import android.graphics.Bitmap
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
@@ -155,12 +161,29 @@ fun MainScreenContent(
                                     handler?.cancel()
                                 }
                             }
+
+                            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                                super.onPageStarted(view, url, favicon)
+                                injectSpeechRecognitionPolyfill(view)
+                            }
+
+                            override fun onPageFinished(view: WebView?, url: String?) {
+                                super.onPageFinished(view, url)
+                                injectSpeechRecognitionPolyfill(view)
+                            }
                         }
                         webChromeClient = object : WebChromeClient() {
                             override fun onPermissionRequest(request: PermissionRequest?) {
                                 request?.grant(request.resources)
                             }
                         }
+                        
+                        // Register Speech Recognition Interface
+                        addJavascriptInterface(
+                            AndroidSpeechRecognitionInterface(ctx) { webViewRef },
+                            "AndroidSpeechRecognition"
+                        )
+
                         this.settings.apply {
                             javaScriptEnabled = true
                             domStorageEnabled = true
@@ -608,4 +631,167 @@ fun SettingsDialog(
 
 // Key for refreshing dialog state on resume
 private val showDialogKey = Any()
+
+class AndroidSpeechRecognitionInterface(
+    private val context: Context,
+    private val webViewProvider: () -> WebView?
+) {
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var activeId: String? = null
+
+    @JavascriptInterface
+    fun startListening(id: String, lang: String) {
+        (context as? Activity)?.runOnUiThread {
+            try {
+                if (speechRecognizer != null) {
+                    speechRecognizer?.destroy()
+                }
+                activeId = id
+                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
+                    setRecognitionListener(object : RecognitionListener {
+                        override fun onReadyForSpeech(params: Bundle?) {}
+                        override fun onBeginningOfSpeech() {
+                            sendToJs("window._onSpeechRecognitionStart('$id')")
+                        }
+                        override fun onRmsChanged(rmsdB: Float) {}
+                        override fun onBufferReceived(buffer: ByteArray?) {}
+                        override fun onEndOfSpeech() {}
+                        
+                        override fun onError(error: Int) {
+                            val errorMsg = when (error) {
+                                SpeechRecognizer.ERROR_AUDIO -> "audio"
+                                SpeechRecognizer.ERROR_CLIENT -> "client"
+                                SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "not-allowed"
+                                SpeechRecognizer.ERROR_NETWORK -> "network"
+                                SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "network-timeout"
+                                SpeechRecognizer.ERROR_NO_MATCH -> "no-match"
+                                SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "busy"
+                                SpeechRecognizer.ERROR_SERVER -> "server"
+                                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "speech-timeout"
+                                else -> "unknown"
+                            }
+                            sendToJs("window._onSpeechRecognitionError('$id', '$errorMsg')")
+                            sendToJs("window._onSpeechRecognitionEnd('$id')")
+                        }
+                        
+                        override fun onResults(results: Bundle?) {
+                            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            if (!matches.isNullOrEmpty()) {
+                                val text = matches[0].replace("'", "\\'")
+                                sendToJs("window._onSpeechRecognitionResult('$id', '$text')")
+                            }
+                            sendToJs("window._onSpeechRecognitionEnd('$id')")
+                        }
+                        
+                        override fun onPartialResults(partialResults: Bundle?) {}
+                        override fun onEvent(eventType: Int, params: Bundle?) {}
+                    })
+                }
+                
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
+                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                }
+                speechRecognizer?.startListening(intent)
+            } catch (e: Exception) {
+                Log.e("SpeechInterface", "Error starting speech recognition", e)
+                sendToJs("window._onSpeechRecognitionError('$id', 'unknown')")
+                sendToJs("window._onSpeechRecognitionEnd('$id')")
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun stopListening(id: String) {
+        (context as? Activity)?.runOnUiThread {
+            try {
+                speechRecognizer?.stopListening()
+            } catch (e: Exception) {
+                Log.e("SpeechInterface", "Error stopping speech recognition", e)
+            }
+        }
+    }
+
+    private fun sendToJs(script: String) {
+        val webView = webViewProvider()
+        webView?.post {
+            webView.evaluateJavascript(script, null)
+        }
+    }
+}
+
+fun injectSpeechRecognitionPolyfill(view: WebView?) {
+    val script = """
+        (function() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                class SpeechRecognitionShim {
+                    constructor() {
+                        this.continuous = false;
+                        this.interimResults = false;
+                        this.lang = 'en-US';
+                        this.onstart = null;
+                        this.onend = null;
+                        this.onresult = null;
+                        this.onerror = null;
+                        this._id = Math.random().toString(36).substring(2);
+                        window._activeSpeechRecognitions = window._activeSpeechRecognitions || {};
+                        window._activeSpeechRecognitions[this._id] = this;
+                    }
+                    start() {
+                        if (window.AndroidSpeechRecognition) {
+                            window.AndroidSpeechRecognition.startListening(this._id, this.lang);
+                        } else {
+                            console.error("AndroidSpeechRecognition native interface not found.");
+                            if (this.onerror) this.onerror({ error: 'service-not-allowed' });
+                        }
+                    }
+                    stop() {
+                        if (window.AndroidSpeechRecognition) {
+                            window.AndroidSpeechRecognition.stopListening(this._id);
+                        }
+                    }
+                    abort() {
+                        this.stop();
+                    }
+                }
+                window.SpeechRecognition = SpeechRecognitionShim;
+                window.webkitSpeechRecognition = SpeechRecognitionShim;
+                window._onSpeechRecognitionStart = function(id) {
+                    const instance = window._activeSpeechRecognitions[id];
+                    if (instance && instance.onstart) {
+                        try { instance.onstart(); } catch(e) { console.error(e); }
+                    }
+                };
+                window._onSpeechRecognitionEnd = function(id) {
+                    const instance = window._activeSpeechRecognitions[id];
+                    if (instance && instance.onend) {
+                        try { instance.onend(); } catch(e) { console.error(e); }
+                    }
+                };
+                window._onSpeechRecognitionResult = function(id, text) {
+                    const instance = window._activeSpeechRecognitions[id];
+                    if (instance && instance.onresult) {
+                        const event = {
+                            results: [
+                                [
+                                    { transcript: text }
+                                ]
+                            ]
+                        };
+                        try { instance.onresult(event); } catch(e) { console.error(e); }
+                    }
+                };
+                window._onSpeechRecognitionError = function(id, errorMsg) {
+                    const instance = window._activeSpeechRecognitions[id];
+                    if (instance && instance.onerror) {
+                        try { instance.onerror({ error: errorMsg }); } catch(e) { console.error(e); }
+                    }
+                };
+            }
+        })();
+    """.trimIndent()
+    view?.evaluateJavascript(script, null)
+}
 
