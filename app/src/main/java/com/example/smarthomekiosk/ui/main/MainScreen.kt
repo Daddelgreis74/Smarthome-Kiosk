@@ -82,6 +82,7 @@ fun MainScreenContent(
     var showUpdateDialog by remember { mutableStateOf<AppUpdater.UpdateInfo?>(null) }
     var downloadProgress by remember { mutableStateOf<Float?>(null) }
     var isCheckingForUpdates by remember { mutableStateOf(false) }
+    var showSetupDialog by remember { mutableStateOf(settings.httpPassword.isEmpty()) }
     var currentAppVersion by remember {
         mutableStateOf(
             try {
@@ -476,6 +477,100 @@ fun MainScreenContent(
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium
                         )
+                    }
+                }
+            }
+        }
+
+        // 3. Setup Password Dialog (First launch / mandatory setup)
+        if (showSetupDialog) {
+            Dialog(
+                onDismissRequest = {},
+                properties = DialogProperties(
+                    dismissOnBackPress = false,
+                    dismissOnClickOutside = false
+                )
+            ) {
+                Surface(
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.width(360.dp).padding(16.dp)
+                ) {
+                    var newHttpPassword by remember { mutableStateOf("") }
+                    var newSettingsPin by remember { mutableStateOf("1234") }
+                    var errorText by remember { mutableStateOf<String?>(null) }
+
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Ersteinrichtung",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        Text(
+                            text = "Bitte richte aus Sicherheitsgründen ein Passwort für die Remote-Fernsteuerung und eine PIN für die lokalen Einstellungen ein.",
+                            fontSize = 13.sp,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(bottom = 16.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = newHttpPassword,
+                            onValueChange = { newHttpPassword = it },
+                            label = { Text("Remote-Admin Passwort") },
+                            placeholder = { Text("z.B. MeinSicheresPasswort") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = newSettingsPin,
+                            onValueChange = { 
+                                if (it.all { char -> char.isDigit() } && it.length <= 8) {
+                                    newSettingsPin = it
+                                }
+                            },
+                            label = { Text("Einstellungen-PIN (Tablet)") },
+                            placeholder = { Text("Standard: 1234") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        if (errorText != null) {
+                            Text(
+                                text = errorText!!,
+                                color = MaterialTheme.colorScheme.error,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        Button(
+                            onClick = {
+                                if (newHttpPassword.trim().length < 4) {
+                                    errorText = "Das Passwort muss mindestens 4 Zeichen lang sein."
+                                } else if (newSettingsPin.trim().isEmpty()) {
+                                    errorText = "Die PIN darf nicht leer sein."
+                                } else {
+                                    settings.httpPassword = newHttpPassword.trim()
+                                    settings.settingsPassword = newSettingsPin.trim()
+                                    showSetupDialog = false
+                                    // Start HTTP server by restarting service
+                                    (context as? MainActivity)?.restartKioskService()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Einrichten und starten")
+                        }
                     }
                 }
             }

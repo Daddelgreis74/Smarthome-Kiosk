@@ -59,7 +59,7 @@ class KioskSettings(context: Context) {
         set(value) = prefs.edit().putInt(KEY_HTTP_PORT, value).apply()
 
     var httpPassword: String
-        get() = prefs.getString(KEY_HTTP_PASSWORD, "admin") ?: "admin"
+        get() = prefs.getString(KEY_HTTP_PASSWORD, "") ?: ""
         set(value) = prefs.edit().putString(KEY_HTTP_PASSWORD, value).apply()
 
     var mdnsEnabled: Boolean

@@ -10,6 +10,7 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.net.URLDecoder
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.concurrent.thread
 
 class KioskHttpServer(
@@ -64,6 +65,7 @@ class KioskHttpServer(
     }
 
     private fun handleClient(socket: Socket) {
+        val clientIp = socket.inetAddress?.hostAddress ?: "unknown"
         var reader: BufferedReader? = null
         var output: OutputStream? = null
         try {
@@ -92,6 +94,12 @@ class KioskHttpServer(
                         contentLength = value.toIntOrNull() ?: 0
                     }
                 }
+            }
+
+            // Content-Length Limit (max 8 KB)
+            if (contentLength < 0 || contentLength > 8192) {
+                sendResponse(output, 413, "Payload Too Large", "{\"error\":\"Payload Too Large\"}")
+                return
             }
 
             // 3. Read Body
@@ -159,24 +167,36 @@ class KioskHttpServer(
                 return
             }
 
-            // 5. Check Authentication
-            var clientPassword = headers["x-kiosk-password"] ?: queryParams["password"]
-            
-            // Try parsing password from JSON body if not found in headers or query
-            if (clientPassword.isNullOrEmpty() && body.isNotEmpty()) {
-                try {
-                    val json = JSONObject(body.toString())
-                    if (json.has("password")) {
-                        clientPassword = json.getString("password")
-                    }
-                } catch (e: Exception) {
-                    // Ignore malformed JSON for now
+            // 5. Check Authentication (Only for API endpoints starting with /api/)
+            if (path.startsWith("/api/")) {
+                // Rate Limiting check
+                val blockMessage = checkRateLimit(clientIp)
+                if (blockMessage != null) {
+                    sendResponse(output, 429, "Too Many Requests", "{\"error\":\"$blockMessage\"}")
+                    return
                 }
-            }
 
-            if (password.isNotEmpty() && clientPassword != password) {
-                sendResponse(output, 401, "Unauthorized", "{\"error\":\"Unauthorized\"}")
-                return
+                var clientPassword = headers["x-kiosk-password"] ?: queryParams["password"]
+                
+                // Try parsing password from JSON body if not found in headers or query
+                if (clientPassword.isNullOrEmpty() && body.isNotEmpty()) {
+                    try {
+                        val json = JSONObject(body.toString())
+                        if (json.has("password")) {
+                            clientPassword = json.getString("password")
+                        }
+                    } catch (e: Exception) {
+                        // Ignore malformed JSON for now
+                    }
+                }
+
+                if (password.isEmpty() || clientPassword != password) {
+                    recordLoginFailure(clientIp)
+                    sendResponse(output, 401, "Unauthorized", "{\"error\":\"Unauthorized - Remote password incorrect or not configured\"}")
+                    return
+                }
+
+                recordLoginSuccess(clientIp)
             }
 
             // 6. Handle Endpoints
@@ -312,6 +332,46 @@ class KioskHttpServer(
         } catch (e: Exception) {
             Log.e("KioskHttpServer", "Error serving asset $assetPath", e)
             sendResponse(output, 404, "Not Found", "{\"error\":\"Asset not found\"}")
+        }
+    }
+
+    companion object {
+        private val loginAttempts = ConcurrentHashMap<String, IpRateInfo>()
+
+        data class IpRateInfo(
+            val failedTimestamps: MutableList<Long> = ArrayList(),
+            var blockedUntil: Long = 0L
+        )
+
+        @Synchronized
+        private fun checkRateLimit(ip: String): String? {
+            val now = System.currentTimeMillis()
+            val info = loginAttempts.getOrPut(ip) { IpRateInfo() }
+
+            if (info.blockedUntil > now) {
+                val remainingSeconds = ((info.blockedUntil - now) / 1000).coerceAtLeast(1)
+                return "Too many failed attempts. Please wait $remainingSeconds seconds."
+            }
+
+            info.failedTimestamps.removeAll { now - it > 60000 }
+            return null
+        }
+
+        @Synchronized
+        private fun recordLoginFailure(ip: String) {
+            val now = System.currentTimeMillis()
+            val info = loginAttempts.getOrPut(ip) { IpRateInfo() }
+
+            info.failedTimestamps.add(now)
+
+            if (info.failedTimestamps.size >= 5) {
+                info.blockedUntil = now + 60000
+            }
+        }
+
+        @Synchronized
+        private fun recordLoginSuccess(ip: String) {
+            loginAttempts.remove(ip)
         }
     }
 }

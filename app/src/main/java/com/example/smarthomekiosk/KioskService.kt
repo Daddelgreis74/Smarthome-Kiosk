@@ -101,7 +101,7 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun startNetworkServices() {
-        if (settings.kioskEnabled) {
+        if (settings.kioskEnabled && settings.httpPassword.isNotEmpty()) {
             httpServer = KioskHttpServer(this, settings.httpPort, settings.httpPassword, this).apply {
                 start()
             }
