@@ -10,6 +10,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
     - name: Checkout project
@@ -25,22 +27,34 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
+    - name: Generate keystore if not exists
+      run: |
+        if [ ! -f app/keystore.jks ]; then
+          keytool -genkey -v -keystore app/keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias neo-kiosk-key -storepass password123 -keypass password123 -dname "CN=NeoKiosk, O=Home, C=DE"
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git add app/keystore.jks
+          git commit -m "Generate persistent release keystore [skip ci]"
+          git push
+        fi
+      shell: bash
+
     - name: Build with Gradle
       run: ./gradlew assembleDebug assembleRelease --no-daemon
 
     - name: Rename APKs
       run: |
-        mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/neo-kiosk.apk
-        mv app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/neo-kiosk-release-unsigned.apk
+        mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/neo-kiosk-debug.apk
+        mv app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/neo-kiosk.apk
+
+    - name: Upload Release APK (Signed)
+      uses: actions/upload-artifact@v4
+      with:
+        name: neo-kiosk
+        path: app/build/outputs/apk/release/neo-kiosk.apk
 
     - name: Upload Debug APK
       uses: actions/upload-artifact@v4
       with:
-        name: neo-kiosk
-        path: app/build/outputs/apk/debug/neo-kiosk.apk
-
-    - name: Upload Release APK (Unsigned)
-      uses: actions/upload-artifact@v4
-      with:
-        name: neo-kiosk-release-unsigned
-        path: app/build/outputs/apk/release/neo-kiosk-release-unsigned.apk
+        name: neo-kiosk-debug
+        path: app/build/outputs/apk/debug/neo-kiosk-debug.apk
