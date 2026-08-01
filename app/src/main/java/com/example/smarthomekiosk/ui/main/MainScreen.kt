@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.smarthomekiosk.AppUpdater
 import com.example.smarthomekiosk.KioskDeviceAdminReceiver
 import com.example.smarthomekiosk.KioskService
 import com.example.smarthomekiosk.KioskSettings
