@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Exposes the app's internal cacheDir/ for APK package installer -->
+    <cache-path name="shared_apk" path="." />
+</paths>

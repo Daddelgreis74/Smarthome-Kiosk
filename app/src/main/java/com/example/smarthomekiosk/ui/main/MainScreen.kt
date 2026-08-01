@@ -21,6 +21,7 @@ import android.speech.tts.UtteranceProgressListener
 import android.media.MediaPlayer
 import android.util.Base64
 import android.util.Log
+import android.widget.Toast
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
@@ -69,11 +70,33 @@ fun MainScreenContent(
     onWakeUp: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var currentUrl by remember { mutableStateOf(settings.dashboardUrl) }
     var showPasswordPrompt by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var swipeAccumulatedDistance by remember { mutableStateOf(0f) }
+
+    var showUpdateDialog by remember { mutableStateOf<AppUpdater.UpdateInfo?>(null) }
+    var downloadProgress by remember { mutableStateOf<Float?>(null) }
+    var isCheckingForUpdates by remember { mutableStateOf(false) }
+    var currentAppVersion by remember {
+        mutableStateOf(
+            try {
+                context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "2.1"
+            } catch (e: Exception) {
+                "2.1"
+            }
+        )
+    }
+
+    // Silent check for updates on app start
+    LaunchedEffect(Unit) {
+        val updateInfo = AppUpdater.checkForUpdates(context)
+        if (updateInfo.isUpdateAvailable && !updateInfo.apkDownloadUrl.isNullOrEmpty()) {
+            showUpdateDialog = updateInfo
+        }
+    }
 
     // Re-load WebView if settings URL changes
     LaunchedEffect(settings.dashboardUrl) {
@@ -355,8 +378,105 @@ fun MainScreenContent(
                 onReload = {
                     showSettings = false
                     webViewRef?.reload()
+                },
+                currentVersion = currentAppVersion,
+                isCheckingForUpdates = isCheckingForUpdates,
+                onCheckForUpdates = {
+                    scope.launch {
+                        isCheckingForUpdates = true
+                        val updateInfo = AppUpdater.checkForUpdates(context)
+                        isCheckingForUpdates = false
+                        if (updateInfo.isUpdateAvailable && !updateInfo.apkDownloadUrl.isNullOrEmpty()) {
+                            showUpdateDialog = updateInfo
+                        } else {
+                            Toast.makeText(context, "Kiosk ist auf dem neuesten Stand (v$currentAppVersion)!", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
             )
+        }
+
+        // 1. Update Available Dialog (Changelog)
+        showUpdateDialog?.let { info ->
+            AlertDialog(
+                onDismissRequest = { showUpdateDialog = null },
+                title = { Text("Update verfügbar (v${info.latestVersion})") },
+                text = {
+                    Column {
+                        Text("Eine neue Version von Neo Kiosk steht bereit.", fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Deine Version: $currentAppVersion")
+                        Text("Neueste Version: ${info.latestVersion}")
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Changelog / Versionshinweise:", fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 200.dp)
+                                .verticalScroll(rememberScrollState())
+                                .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small)
+                                .padding(8.dp)
+                        ) {
+                            Text(info.changelog.ifEmpty { "Keine Release-Notes vorhanden." }, fontSize = 13.sp)
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val downloadUrl = info.apkDownloadUrl
+                            showUpdateDialog = null
+                            scope.launch {
+                                downloadProgress = 0f
+                                val file = AppUpdater.downloadApk(context, downloadUrl) { progress ->
+                                    downloadProgress = progress
+                                }
+                                downloadProgress = null
+                                if (file != null) {
+                                    AppUpdater.startInstallation(context, file)
+                                } else {
+                                    Toast.makeText(context, "Fehler beim Herunterladen des Updates!", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    ) {
+                        Text("Herunterladen & Installieren")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showUpdateDialog = null }) {
+                        Text("Später")
+                    }
+                }
+            )
+        }
+
+        // 2. Download Progress Dialog
+        downloadProgress?.let { progress ->
+            Dialog(
+                onDismissRequest = {},
+                properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
+            ) {
+                Surface(
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.width(280.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        CircularProgressIndicator(progress = progress)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Update wird heruntergeladen... ${(progress * 100).toInt()}%",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -367,7 +487,10 @@ fun SettingsDialog(
     settings: KioskSettings,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
-    onReload: () -> Unit
+    onReload: () -> Unit,
+    currentVersion: String,
+    isCheckingForUpdates: Boolean,
+    onCheckForUpdates: () -> Unit
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
@@ -481,6 +604,35 @@ fun SettingsDialog(
                             Text("Fordert das Passwort an, wenn das Einstellungsmenü geöffnet wird", fontSize = 12.sp, color = Color.Gray)
                         }
                         Switch(checked = pinProtectionEnabled, onCheckedChange = { pinProtectionEnabled = it })
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
+                    // App-Update
+                    Text("App-Update", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(vertical = 8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Version: $currentVersion")
+                            Text("Suche auf GitHub nach neuen Versionen", fontSize = 12.sp, color = Color.Gray)
+                        }
+                        Button(
+                            onClick = onCheckForUpdates,
+                            enabled = !isCheckingForUpdates
+                        ) {
+                            if (isCheckingForUpdates) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            } else {
+                                Text("Prüfen")
+                            }
+                        }
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))

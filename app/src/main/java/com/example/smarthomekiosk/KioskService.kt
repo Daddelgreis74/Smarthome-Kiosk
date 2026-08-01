@@ -253,12 +253,18 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
         activityManager.getMemoryInfo(mi)
         val freeMemoryBytes = mi.availMem
 
+        val appVersionName = try {
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "2.1"
+        } catch (e: Exception) {
+            "2.1"
+        }
+
         val json = JSONObject().apply {
             put("batteryLevel", batteryPct)
             put("isCharging", isCharging)
             put("screenOff", isScreenOffState)
             put("freeMemoryMb", freeMemoryBytes / (1024 * 1024))
-            put("appVersion", "1.0")
+            put("appVersion", appVersionName)
             put("androidVersion", Build.VERSION.RELEASE)
             put("model", Build.MODEL)
             put("dashboardUrl", settings.dashboardUrl)
