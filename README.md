@@ -28,6 +28,7 @@ Klassische Browser und WebViews blockieren viele Funktionen, die für ein anspru
 *   **PIN-Schutz:** Das Einstellungsmenü kann optional mit einer PIN (Standard: `1234`) gesperrt werden, um unbefugten Zugriff zu verhindern.
 *   **App schließen:** Ein Button im Einstellungsmenü erlaubt es, den Kiosk-Modus zu beenden und die App sauber zu schließen.
 *   **Direktes Reload:** Aktualisiere das Dashboard direkt über das Menü.
+*   **In-App-Update:** Prüft automatisch im Hintergrund (oder per Button-Klick in den Einstellungen) auf neuere Versionen via GitHub Releases API, lädt die APK mit einem Fortschrittsbalken herunter und stößt die native Installation an.
 
 ### 2. Remote-Administration (Web-Oberfläche)
 Die App startet einen lokalen Webserver (Port `8080`), über den das Tablet bequem vom PC aus verwaltet werden kann:
@@ -57,3 +58,4 @@ Die App benötigt folgende Android-Rechte:
 *   `CAMERA`: Für die lokale Bewegungserkennung (Bilder werden nur im RAM analysiert und **niemals** gespeichert oder übertragen).
 *   `SYSTEM_ALERT_WINDOW` (Über anderen Apps einblenden): Für die Debug-Kameravorschau.
 *   `WRITE_SETTINGS` / `DEVICE_POLICY_MANAGER`: Um das Display des Tablets hardwareseitig schlafen zu legen.
+*   `REQUEST_INSTALL_PACKAGES`: Damit die App das heruntergeladene APK-Update an den System-Installer übergeben kann.
