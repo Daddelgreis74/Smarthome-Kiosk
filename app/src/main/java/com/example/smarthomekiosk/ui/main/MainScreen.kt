@@ -12,7 +12,7 @@ import android.net.http.SslError
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
+import android.provider.Settings as AndroidSettings
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -35,22 +35,23 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import com.example.smarthomekiosk.ui.setup.SetupWizardDialog
-import com.example.smarthomekiosk.i18n.AppLanguage
-import com.example.smarthomekiosk.i18n.Strings
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -67,6 +68,9 @@ import com.example.smarthomekiosk.KioskDeviceAdminReceiver
 import com.example.smarthomekiosk.KioskService
 import com.example.smarthomekiosk.KioskSettings
 import com.example.smarthomekiosk.MainActivity
+import com.example.smarthomekiosk.i18n.AppLanguage
+import com.example.smarthomekiosk.i18n.Strings
+import com.example.smarthomekiosk.ui.setup.SetupWizardDialog
 
 @Composable
 fun MainScreenContent(
@@ -76,6 +80,8 @@ fun MainScreenContent(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val effectiveLang = Strings.getEffectiveLanguage(settings.appLanguage)
+
     var currentUrl by remember { mutableStateOf(settings.dashboardUrl) }
     var showPasswordPrompt by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
@@ -89,9 +95,9 @@ fun MainScreenContent(
     var currentAppVersion by remember {
         mutableStateOf(
             try {
-                context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "2.1"
+                context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "2.5"
             } catch (e: Exception) {
-                "2.1"
+                "2.5"
             }
         )
     }
@@ -143,159 +149,77 @@ fun MainScreenContent(
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(Unit) {
-                // Intercept any touch on screen to reset idle timer in service
-                awaitPointerEventScope {
-                    while (true) {
-                        awaitPointerEvent(PointerEventPass.Initial)
-                        context.sendBroadcast(Intent(KioskService.ACTION_RESET_IDLE))
+                detectTapGestures(
+                    onTap = {
+                        if (isDimmed) {
+                            onWakeUp()
+                        }
                     }
-                }
+                )
             }
     ) {
-        if (currentUrl.isEmpty()) {
-            // Empty State
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Smarthome Kiosk", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Bitte konfiguriere die Dashboard-URL in den Einstellungen.")
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Button(onClick = {
-                        if (settings.pinProtectionEnabled) {
-                            showPasswordPrompt = true
-                        } else {
-                            showSettings = true
-                        }
-                    }) {
-                        Text("Einstellungen öffnen")
-                    }
-                }
-            }
-        } else {
-            // Fullscreen WebView
+        // Fullscreen WebView
+        if (currentUrl.isNotEmpty()) {
             AndroidView(
-                modifier = Modifier.fillMaxSize(),
                 factory = { ctx ->
                     WebView(ctx).apply {
                         layoutParams = ViewGroup.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
-                        webViewClient = object : WebViewClient() {
-                            @Deprecated("Deprecated in Java")
-                            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                                if (url != null) {
-                                    view?.loadUrl(url)
-                                }
-                                return true
-                            }
-
-                            override fun onReceivedSslError(
-                                view: WebView?,
-                                handler: SslErrorHandler?,
-                                error: SslError?
-                            ) {
-                                if (settings.ignoreSslErrors) {
-                                    handler?.proceed()
-                                } else {
-                                    handler?.cancel()
-                                }
-                            }
-
-                            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                                super.onPageStarted(view, url, favicon)
-                                injectKioskPolyfills(view)
-                            }
-
-                            override fun onPageFinished(view: WebView?, url: String?) {
-                                super.onPageFinished(view, url)
-                                injectKioskPolyfills(view)
-                            }
-                        }
-                        webChromeClient = object : WebChromeClient() {
-                            override fun onPermissionRequest(request: PermissionRequest?) {
-                                request?.grant(request.resources)
-                            }
-                        }
-                        
-                        // Register Speech Recognition Interface
-                        addJavascriptInterface(
-                            AndroidSpeechRecognitionInterface(ctx) { webViewRef },
-                            "AndroidSpeechRecognition"
-                        )
-
-                        // Register Speech Synthesis Interface
-                        addJavascriptInterface(
-                            AndroidSpeechSynthesisInterface(ctx) { webViewRef },
-                            "AndroidSpeechSynthesis"
-                        )
-
-                        // Register Audio Player Interface (Blob Audio Fix for ElevenLabs)
-                        addJavascriptInterface(
-                            AndroidAudioPlayerInterface(ctx) { webViewRef },
-                            "AndroidAudioPlayer"
-                        )
-
-                        this.settings.apply {
-                            javaScriptEnabled = true
-                            domStorageEnabled = true
-                            databaseEnabled = true
-                            useWideViewPort = true
-                            loadWithOverviewMode = true
-                            cacheMode = WebSettings.LOAD_DEFAULT
-                            mediaPlaybackRequiresUserGesture = false
-                            
-                            // Enable mixed content (http on https dashboard if needed)
-                            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                        }
-                        webViewRef = this
+                        setupWebView(this, ctx, settings)
                         loadUrl(currentUrl)
+                        webViewRef = this
                     }
                 },
-                update = {
-                    // Update settings if needed
-                }
+                modifier = Modifier.fillMaxSize()
             )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Neo Kiosk",
+                    color = Color.White,
+                    fontSize = 24.sp
+                )
+            }
         }
 
-        // Invisible swipe-from-left-edge hotspot to open settings
+        // Left edge swipe detector to open settings
         Box(
             modifier = Modifier
-                .align(Alignment.CenterStart)
                 .fillMaxHeight()
-                .width(35.dp)
-                .background(Color.Transparent)
+                .width(48.dp)
+                .align(Alignment.CenterStart)
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
                         onDragStart = {
                             swipeAccumulatedDistance = 0f
                         },
-                        onDragEnd = {
-                            if (swipeAccumulatedDistance > 250f) { // Swipe of ~2.5 cm to the right
-                                if (settings.pinProtectionEnabled) {
-                                    showPasswordPrompt = true
-                                } else {
-                                    showSettings = true
-                                }
-                            }
-                            swipeAccumulatedDistance = 0f
-                        },
-                        onDragCancel = {
-                            swipeAccumulatedDistance = 0f
-                        },
                         onHorizontalDrag = { change, dragAmount ->
                             change.consume()
-                            swipeAccumulatedDistance += dragAmount
+                            if (dragAmount > 0) {
+                                swipeAccumulatedDistance += dragAmount
+                                if (swipeAccumulatedDistance > 100f) {
+                                    swipeAccumulatedDistance = 0f
+                                    if (settings.pinProtectionEnabled) {
+                                        showPasswordPrompt = true
+                                    } else {
+                                        showSettings = true
+                                    }
+                                }
+                            }
                         }
                     )
                 }
         )
 
-        // Dimmed Screen (Fake Standby Overlay)
-        if (isDimmed) {
+        // Dimmed / Fake Blackscreen Overlay
+        if (isDimmed && settings.screenOffMethod == "fake") {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -315,10 +239,10 @@ fun MainScreenContent(
 
             AlertDialog(
                 onDismissRequest = { showPasswordPrompt = false },
-                title = { Text("Einstellungen sperren") },
+                title = { Text(Strings.pinPromptTitle(effectiveLang)) },
                 text = {
                     Column {
-                        Text("Bitte gib das Passwort ein:")
+                        Text(Strings.pinPromptDesc(effectiveLang))
                         Spacer(modifier = Modifier.height(8.dp))
                         OutlinedTextField(
                             value = passwordInput,
@@ -362,7 +286,7 @@ fun MainScreenContent(
                 },
                 dismissButton = {
                     TextButton(onClick = { showPasswordPrompt = false }) {
-                        Text("Abbrechen")
+                        Text(Strings.cancel(effectiveLang))
                     }
                 }
             )
@@ -375,10 +299,8 @@ fun MainScreenContent(
                 onDismiss = { showSettings = false },
                 onSave = {
                     showSettings = false
-                    // Force reload/load of current URL with new settings
                     currentUrl = settings.dashboardUrl
                     webViewRef?.loadUrl(currentUrl)
-                    // Restart Kiosk Service background engines
                     (context as? MainActivity)?.restartKioskService()
                 },
                 onReload = {
@@ -415,8 +337,8 @@ fun MainScreenContent(
                     Column {
                         Text(Strings.updateAvailableDesc(effectiveLang), fontWeight = FontWeight.Medium)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("Deine Version: $currentAppVersion")
-                        Text("Neueste Version: ${info.latestVersion}")
+                        Text("Aktuell / Installed: $currentAppVersion")
+                        Text("Neu / Latest: ${info.latestVersion}")
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(Strings.updateChangelog(effectiveLang), fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(4.dp))
@@ -456,31 +378,37 @@ fun MainScreenContent(
                 },
                 dismissButton = {
                     TextButton(onClick = { showUpdateDialog = null }) {
-                        Text("Später")
+                        Text(Strings.cancel(effectiveLang))
                     }
                 }
             )
         }
 
-        // 2. Download Progress Dialog
+        // 2. Download Progress Overlay
         downloadProgress?.let { progress ->
             Dialog(
                 onDismissRequest = {},
-                properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
+                properties = DialogProperties(
+                    dismissOnBackPress = false,
+                    dismissOnClickOutside = false
+                )
             ) {
                 Surface(
-                    shape = MaterialTheme.shapes.medium,
+                    shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surface,
-                    modifier = Modifier.width(280.dp)
+                    modifier = Modifier.padding(16.dp)
                 ) {
                     Column(
                         modifier = Modifier.padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        CircularProgressIndicator(progress = progress)
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.fillMaxWidth()
+                        )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "Update wird heruntergeladen... ${(progress * 100).toInt()}%",
+                            text = Strings.updateDownloading(effectiveLang, (progress * 100).toInt()),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -520,6 +448,9 @@ fun SettingsDialog(
     val scrollState = rememberScrollState()
 
     // Temporary settings state
+    var appLanguage by remember { mutableStateOf(settings.appLanguage) }
+    val effectiveLang = Strings.getEffectiveLanguage(appLanguage)
+
     var url by remember { mutableStateOf(settings.dashboardUrl) }
     var password by remember { mutableStateOf(settings.settingsPassword) }
     var pinProtectionEnabled by remember { mutableStateOf(settings.pinProtectionEnabled) }
@@ -541,13 +472,7 @@ fun SettingsDialog(
 
     // Overlay permission status check
     var hasOverlayPermission by remember {
-        mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context) else true)
-    }
-
-    // Polling permission checks when returning from settings
-    LaunchedEffect(showDialogKey) {
-        isAdminActive = dpm.isAdminActive(adminComponent)
-        hasOverlayPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context) else true
+        mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) AndroidSettings.canDrawOverlays(context) else true)
     }
 
     Dialog(
@@ -567,7 +492,7 @@ fun SettingsDialog(
             ) {
                 // Header
                 Text(
-                    text = "Kiosk-Einstellungen",
+                    text = Strings.settingsTitle(effectiveLang),
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 16.dp)
@@ -579,12 +504,46 @@ fun SettingsDialog(
                         .weight(1f)
                         .verticalScroll(scrollState)
                 ) {
+                    // 0. Language Configuration
+                    Text(Strings.sectionGeneral(effectiveLang), fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(vertical = 8.dp))
+                    Text(Strings.appLanguageLabel(effectiveLang), fontSize = 13.sp, color = Color.Gray, modifier = Modifier.padding(bottom = 6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(
+                            AppLanguage.AUTO to "Auto",
+                            AppLanguage.DE to "Deutsch 🇩🇪",
+                            AppLanguage.EN to "English 🇬🇧"
+                        ).forEach { (al, label) ->
+                            val isSelected = appLanguage == al.code
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                                    .clickable { appLanguage = al.code }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
                     // 1. Dashboard URL Configuration
-                    Text("Dashboard-Konfiguration", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(vertical = 8.dp))
+                    Text(Strings.dashboardUrlLabel(effectiveLang), fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(vertical = 8.dp))
                     OutlinedTextField(
                         value = url,
                         onValueChange = { url = it },
-                        label = { Text("Dashboard URL") },
+                        label = { Text(Strings.dashboardUrlLabel(effectiveLang)) },
                         placeholder = { Text("http://192.168.178.101:3000") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                         modifier = Modifier.fillMaxWidth()
@@ -599,10 +558,9 @@ fun SettingsDialog(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(Strings.reloadPageBtn(effectiveLang))
-                            Text("Aktualisiert die geladene Webseite im Kiosk sofort", fontSize = 12.sp, color = Color.Gray)
                         }
                         Button(onClick = onReload) {
-                            Text("Neu laden")
+                            Text(Strings.reloadPageBtn(effectiveLang))
                         }
                     }
 
@@ -611,7 +569,7 @@ fun SettingsDialog(
                     OutlinedTextField(
                         value = password,
                         onValueChange = { password = it },
-                        label = { Text("Admin-Einstellungen Passwort") },
+                        label = { Text(Strings.settingsPinLabel(effectiveLang)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -624,8 +582,8 @@ fun SettingsDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("PIN-Schutz für Einstellungen")
-                            Text("Fordert das Passwort an, wenn das Einstellungsmenü geöffnet wird", fontSize = 12.sp, color = Color.Gray)
+                            Text(Strings.pinProtectionToggle(effectiveLang))
+                            Text(Strings.pinProtectionToggleDesc(effectiveLang), fontSize = 12.sp, color = Color.Gray)
                         }
                         Switch(checked = pinProtectionEnabled, onCheckedChange = { pinProtectionEnabled = it })
                     }
@@ -641,7 +599,6 @@ fun SettingsDialog(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Version: $currentVersion")
-                            Text("Suche auf GitHub nach neuen Versionen", fontSize = 12.sp, color = Color.Gray)
                         }
                         Button(
                             onClick = onCheckForUpdates,
@@ -654,7 +611,7 @@ fun SettingsDialog(
                                     color = MaterialTheme.colorScheme.onPrimary
                                 )
                             } else {
-                                Text("Prüfen")
+                                Text(Strings.checkForUpdatesBtn(effectiveLang))
                             }
                         }
                     }
@@ -662,7 +619,7 @@ fun SettingsDialog(
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
                     // 2. Kiosk and Standby Mode
-                    Text("Kiosk & Standby", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(vertical = 8.dp))
+                    Text(Strings.sectionDisplayKiosk(effectiveLang), fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(vertical = 8.dp))
                     
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -670,8 +627,8 @@ fun SettingsDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Kiosk-Modus aktivieren")
-                            Text("Systemleisten ausblenden und Sperrungen einschalten", fontSize = 12.sp, color = Color.Gray)
+                            Text(Strings.lockTaskToggle(effectiveLang))
+                            Text(Strings.lockTaskDesc(effectiveLang), fontSize = 12.sp, color = Color.Gray)
                         }
                         Switch(checked = kioskEnabled, onCheckedChange = { kioskEnabled = it })
                     }
@@ -679,27 +636,27 @@ fun SettingsDialog(
                     OutlinedTextField(
                         value = timeoutMinutes,
                         onValueChange = { timeoutMinutes = it },
-                        label = { Text("Bildschirm-Timeout (Minuten, 0 = deaktiviert)") },
+                        label = { Text(Strings.screenTimeoutLabel(effectiveLang)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    Text("Ausschalt-Methode", fontSize = 14.sp)
+                    Text(Strings.screenOffMethodLabel(effectiveLang), fontSize = 14.sp)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(
                             selected = screenOffMethod == "fake",
                             onClick = { screenOffMethod = "fake" }
                         )
-                        Text("Fake-Standby (Schwarzer Screen + Helligkeit 0)")
+                        Text(Strings.methodFakeTitle(effectiveLang))
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(
                             selected = screenOffMethod == "admin",
                             onClick = { screenOffMethod = "admin" }
                         )
-                        Text("Echtes Ausschalten (Benötigt Geräte-Admin)")
+                        Text(Strings.methodNativeTitle(effectiveLang))
                     }
 
                     if (screenOffMethod == "admin" && !isAdminActive) {
@@ -709,8 +666,8 @@ fun SettingsDialog(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
-                                Text("Geräte-Admin nicht aktiv!", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
-                                Text("Die App benötigt Admin-Rechte, um das Display hart auszuschalten.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onErrorContainer)
+                                Text(Strings.deviceAdminSection(effectiveLang), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+                                Text(Strings.deviceAdminDesc(effectiveLang), fontSize = 12.sp, color = MaterialTheme.colorScheme.onErrorContainer)
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Button(
                                     onClick = {
@@ -722,7 +679,7 @@ fun SettingsDialog(
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                                 ) {
-                                    Text("Rechte aktivieren")
+                                    Text(Strings.deviceAdminGrantBtn(effectiveLang))
                                 }
                             }
                         }
@@ -731,19 +688,19 @@ fun SettingsDialog(
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
                     // 3. Motion Detection
-                    Text("Bewegungserkennung (Frontkamera)", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(vertical = 8.dp))
+                    Text(Strings.sectionMotion(effectiveLang), fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(vertical = 8.dp))
                     
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Kamera-Bewegungserkennung aktivieren")
+                        Text(Strings.motionDetectionToggle(effectiveLang))
                         Switch(checked = motionEnabled, onCheckedChange = { motionEnabled = it })
                     }
 
                     if (motionEnabled) {
-                        Text("Empfindlichkeit: ${sensitivity.toInt()}%", fontSize = 14.sp)
+                        Text(Strings.motionSensitivity(effectiveLang, sensitivity.toInt()), fontSize = 14.sp)
                         Slider(
                             value = sensitivity,
                             onValueChange = { sensitivity = it },
@@ -757,8 +714,8 @@ fun SettingsDialog(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Kamera-Debug-Vorschau anzeigen")
-                                Text("Zeigt ein kleines Vorschaubild zur Kalibrierung", fontSize = 12.sp, color = Color.Gray)
+                                Text(Strings.motionDebugToggle(effectiveLang))
+                                Text(Strings.motionDebugDesc(effectiveLang), fontSize = 12.sp, color = Color.Gray)
                             }
                             Switch(checked = motionDebug, onCheckedChange = { motionDebug = it })
                         }
@@ -770,21 +727,20 @@ fun SettingsDialog(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(modifier = Modifier.padding(12.dp)) {
-                                    Text("Overlay-Berechtigung fehlt!", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                                    Text("Für das Debug-Kamerabild muss die Berechtigung 'Über anderen Apps einblenden' erteilt werden.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                    Text(Strings.overlaySection(effectiveLang), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Button(
                                         onClick = {
                                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                                                 val intent = Intent(
-                                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                                    AndroidSettings.ACTION_MANAGE_OVERLAY_PERMISSION,
                                                     Uri.parse("package:${context.packageName}")
                                                 )
                                                 context.startActivity(intent)
                                             }
                                         }
                                     ) {
-                                        Text("Overlay-Rechte gewähren")
+                                        Text(Strings.overlayGrantBtn(effectiveLang))
                                     }
                                 }
                             }
@@ -794,12 +750,12 @@ fun SettingsDialog(
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
                     // 4. REST API & Network
-                    Text("Lokale REST API & Netzwerk", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(vertical = 8.dp))
+                    Text(Strings.sectionRestApi(effectiveLang), fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(vertical = 8.dp))
                     
                     OutlinedTextField(
                         value = apiPort,
                         onValueChange = { apiPort = it },
-                        label = { Text("HTTP REST Port") },
+                        label = { Text(Strings.httpPortLabel(effectiveLang)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -807,7 +763,7 @@ fun SettingsDialog(
                     OutlinedTextField(
                         value = apiPassword,
                         onValueChange = { apiPassword = it },
-                        label = { Text("API Authentifizierungs-Passwort (Header)") },
+                        label = { Text(Strings.apiPasswordLabel(effectiveLang)) },
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -817,8 +773,8 @@ fun SettingsDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("mDNS Service Discovery")
-                            Text("Macht das Tablet im Netzwerk automatisch findbar", fontSize = 12.sp, color = Color.Gray)
+                            Text(Strings.mdnsToggle(effectiveLang))
+                            Text(Strings.mdnsDesc(effectiveLang), fontSize = 12.sp, color = Color.Gray)
                         }
                         Switch(checked = mdnsEnabled, onCheckedChange = { mdnsEnabled = it })
                     }
@@ -829,8 +785,8 @@ fun SettingsDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Selbstsignierte SSL-Zertifikate ignorieren")
-                            Text("Erlaubt das Laden von lokalen HTTPS-Seiten ohne gültiges Zertifikat", fontSize = 12.sp, color = Color.Gray)
+                            Text(Strings.ignoreSslToggle(effectiveLang))
+                            Text(Strings.ignoreSslToggleDesc(effectiveLang), fontSize = 12.sp, color = Color.Gray)
                         }
                         Switch(checked = ignoreSslErrors, onCheckedChange = { ignoreSslErrors = it })
                     }
@@ -870,12 +826,13 @@ fun SettingsDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         TextButton(onClick = onDismiss) {
-                            Text("Abbrechen")
+                            Text(Strings.cancel(effectiveLang))
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Button(
                             onClick = {
                                 // Save state to settings
+                                settings.appLanguage = appLanguage
                                 settings.dashboardUrl = url
                                 settings.settingsPassword = password
                                 settings.pinProtectionEnabled = pinProtectionEnabled
@@ -902,306 +859,226 @@ fun SettingsDialog(
     }
 }
 
-// Key for refreshing dialog state on resume
-private val showDialogKey = Any()
+private fun setupWebView(webView: WebView, context: Context, settings: KioskSettings) {
+    webView.settings.apply {
+        javaScriptEnabled = true
+        domStorageEnabled = true
+        databaseEnabled = true
+        allowFileAccess = true
+        allowContentAccess = true
+        mediaPlaybackRequiresUserGesture = false
+        mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+        useWideViewPort = true
+        loadWithOverviewMode = true
+        displayZoomControls = false
+        builtInZoomControls = false
+        setSupportZoom(false)
+        cacheMode = WebSettings.LOAD_DEFAULT
+    }
 
-class AndroidSpeechRecognitionInterface(
-    private val context: Context,
-    private val webViewProvider: () -> WebView?
-) {
-    private var speechRecognizer: SpeechRecognizer? = null
-    private var activeId: String? = null
+    webView.webViewClient = object : WebViewClient() {
+        override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
+            if (settings.ignoreSslErrors) {
+                handler?.proceed()
+            } else {
+                super.onReceivedSslError(view, handler, error)
+            }
+        }
 
-    @JavascriptInterface
-    fun startListening(id: String, lang: String) {
-        (context as? Activity)?.runOnUiThread {
-            try {
-                if (speechRecognizer != null) {
-                    speechRecognizer?.destroy()
+        override fun onPageFinished(view: WebView?, url: String?) {
+            super.onPageFinished(view, url)
+            injectSpeechPolyfill(view)
+            injectAudioPolyfill(view)
+        }
+    }
+
+    webView.webChromeClient = object : WebChromeClient() {
+        override fun onPermissionRequest(request: PermissionRequest?) {
+            request?.let {
+                val resources = it.resources
+                if (resources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE) ||
+                    resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)
+                ) {
+                    it.grant(resources)
+                } else {
+                    it.grant(resources)
                 }
-                activeId = id
-                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
-                    setRecognitionListener(object : RecognitionListener {
-                        override fun onReadyForSpeech(params: Bundle?) {}
-                        override fun onBeginningOfSpeech() {
-                            sendToJs("window._onSpeechRecognitionStart('$id')")
-                        }
-                        override fun onRmsChanged(rmsdB: Float) {}
-                        override fun onBufferReceived(buffer: ByteArray?) {}
-                        override fun onEndOfSpeech() {}
-                        
-                        override fun onError(error: Int) {
-                            val errorMsg = when (error) {
-                                SpeechRecognizer.ERROR_AUDIO -> "audio"
-                                SpeechRecognizer.ERROR_CLIENT -> "client"
-                                SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "not-allowed"
-                                SpeechRecognizer.ERROR_NETWORK -> "network"
-                                SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "network-timeout"
-                                SpeechRecognizer.ERROR_NO_MATCH -> "no-match"
-                                SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "busy"
-                                SpeechRecognizer.ERROR_SERVER -> "server"
-                                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "speech-timeout"
-                                else -> "unknown"
-                            }
-                            sendToJs("window._onSpeechRecognitionError('$id', '$errorMsg')")
-                            sendToJs("window._onSpeechRecognitionEnd('$id')")
-                        }
-                        
-                        override fun onResults(results: Bundle?) {
-                            val speechResults = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                            if (speechResults != null && speechResults.isNotEmpty()) {
-                                val text = speechResults[0].replace("'", "\\'")
-                                sendToJs("window._onSpeechRecognitionResult('$id', '$text')")
-                            }
-                            sendToJs("window._onSpeechRecognitionEnd('$id')")
-                        }
-                        
-                        override fun onPartialResults(partialResults: Bundle?) {}
-                        override fun onEvent(eventType: Int, params: Bundle?) {}
-                    })
-                }
-                
-                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
-                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                }
-                speechRecognizer?.startListening(intent)
-            } catch (e: Exception) {
-                Log.e("SpeechInterface", "Error starting speech recognition", e)
-                sendToJs("window._onSpeechRecognitionError('$id', 'unknown')")
-                sendToJs("window._onSpeechRecognitionEnd('$id')")
             }
         }
     }
 
-    @JavascriptInterface
-    fun stopListening(id: String) {
-        (context as? Activity)?.runOnUiThread {
-            try {
-                speechRecognizer?.stopListening()
-            } catch (e: Exception) {
-                Log.e("SpeechInterface", "Error stopping speech recognition", e)
-            }
-        }
-    }
+    webView.addJavascriptInterface(
+        AndroidSpeechInterface(context) { webView },
+        "AndroidSpeech"
+    )
 
-    private fun sendToJs(script: String) {
-        val webView = webViewProvider()
-        webView?.post {
-            webView.evaluateJavascript(script, null)
-        }
-    }
+    webView.addJavascriptInterface(
+        AndroidAudioPlayerInterface(context) { webView },
+        "AndroidAudioPlayer"
+    )
 }
 
-class AndroidSpeechSynthesisInterface(
-    private val context: Context,
-    private val webViewProvider: () -> WebView?
-) {
-    private var tts: TextToSpeech? = null
-    private var isInitialized = false
-
-    init {
-        tts = TextToSpeech(context) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                isInitialized = true
-                tts?.language = Locale.GERMAN
-            }
-        }
-    }
-
-    @JavascriptInterface
-    fun speak(id: String, text: String, lang: String) {
-        (context as? Activity)?.runOnUiThread {
-            if (!isInitialized || tts == null) {
-                sendToJs("window._onSpeechError('$id')")
-                return@runOnUiThread
-            }
-            
-            tts?.language = Locale.forLanguageTag(lang)
-            
-            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) {
-                    sendToJs("window._onSpeechStart('$id')")
-                }
-
-                override fun onDone(utteranceId: String?) {
-                    sendToJs("window._onSpeechEnd('$id')")
-                }
-
-                @Deprecated("Deprecated in Java")
-                override fun onError(utteranceId: String?) {
-                    sendToJs("window._onSpeechError('$id')")
-                }
-            })
-
-            val params = Bundle().apply {
-                putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, id)
-            }
-            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, id)
-        }
-    }
-
-    @JavascriptInterface
-    fun cancel() {
-        (context as? Activity)?.runOnUiThread {
-            if (isInitialized) {
-                tts?.stop()
-            }
-        }
-    }
-
-    private fun sendToJs(script: String) {
-        val webView = webViewProvider()
-        webView?.post {
-            webView.evaluateJavascript(script, null)
-        }
-    }
-}
-
-fun injectKioskPolyfills(view: WebView?) {
+private fun injectSpeechPolyfill(view: WebView?) {
     val script = """
         (function() {
-            // Speech Recognition Polyfill
-            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-                class SpeechRecognitionShim {
+            if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
+                class WebviewSpeechRecognition {
                     constructor() {
                         this.continuous = false;
                         this.interimResults = false;
-                        this.lang = 'en-US';
+                        this.lang = 'de-DE';
                         this.onstart = null;
                         this.onend = null;
-                        this.onresult = null;
                         this.onerror = null;
-                        this._id = Math.random().toString(36).substring(2);
-                        window._activeSpeechRecognitions = window._activeSpeechRecognitions || {};
-                        window._activeSpeechRecognitions[this._id] = this;
+                        this.onresult = null;
+                        this._isListening = false;
                     }
                     start() {
-                        if (window.AndroidSpeechRecognition) {
-                            window.AndroidSpeechRecognition.startListening(this._id, this.lang);
-                        } else {
-                            console.error("AndroidSpeechRecognition native interface not found.");
-                            if (this.onerror) this.onerror({ error: 'service-not-allowed' });
+                        if (this._isListening) return;
+                        this._isListening = true;
+                        if (window.AndroidSpeech) {
+                            window.AndroidSpeech.startListening(this.lang);
                         }
                     }
                     stop() {
-                        if (window.AndroidSpeechRecognition) {
-                            window.AndroidSpeechRecognition.stopListening(this._id);
+                        this._isListening = false;
+                        if (window.AndroidSpeech) {
+                            window.AndroidSpeech.stopListening();
                         }
                     }
                     abort() {
-                        this.stop();
-                    }
-                }
-                window.SpeechRecognition = SpeechRecognitionShim;
-                window.webkitSpeechRecognition = SpeechRecognitionShim;
-                window._onSpeechRecognitionStart = function(id) {
-                    const instance = window._activeSpeechRecognitions[id];
-                    if (instance && instance.onstart) {
-                        try { instance.onstart(); } catch(e) { console.error(e); }
-                    }
-                };
-                window._onSpeechRecognitionEnd = function(id) {
-                    const instance = window._activeSpeechRecognitions[id];
-                    if (instance && instance.onend) {
-                        try { instance.onend(); } catch(e) { console.error(e); }
-                    }
-                };
-                window._onSpeechRecognitionResult = function(id, text) {
-                    const instance = window._activeSpeechRecognitions[id];
-                    if (instance && instance.onresult) {
-                        const event = {
-                            results: [
-                                [
-                                    { transcript: text }
-                                ]
-                            ]
-                        };
-                        try { instance.onresult(event); } catch(e) { console.error(e); }
-                    }
-                };
-                window._onSpeechRecognitionError = function(id, errorMsg) {
-                    const instance = window._activeSpeechRecognitions[id];
-                    if (instance && instance.onerror) {
-                        try { instance.onerror({ error: errorMsg }); } catch(e) { console.error(e); }
-                    }
-                };
-            }
-
-            // Speech Synthesis Polyfill/Override
-            if (window.AndroidSpeechSynthesis) {
-                const nativeSpeak = function(utterance) {
-                    const id = Math.random().toString(36).substring(2);
-                    window._activeUtterances = window._activeUtterances || {};
-                    window._activeUtterances[id] = utterance;
-                    
-                    const text = utterance.text;
-                    const lang = utterance.lang || 'de-DE';
-                    
-                    window.AndroidSpeechSynthesis.speak(id, text, lang);
-                };
-                
-                const nativeCancel = function() {
-                    window.AndroidSpeechSynthesis.cancel();
-                };
-                
-                if (window.speechSynthesis) {
-                    window.speechSynthesis.speak = nativeSpeak;
-                    window.speechSynthesis.cancel = nativeCancel;
-                } else {
-                    window.speechSynthesis = {
-                        speak: nativeSpeak,
-                        cancel: nativeCancel,
-                        getVoices: function() {
-                            return [
-                                { name: 'System Deutsch', lang: 'de-DE', default: true, localService: true },
-                                { name: 'System English', lang: 'en-US', default: false, localService: true }
-                            ];
+                        this._isListening = false;
+                        if (window.AndroidSpeech) {
+                            window.AndroidSpeech.stopListening();
                         }
-                    };
+                    }
                 }
-                
-                window._onSpeechStart = function(id) {
-                    const u = window._activeUtterances ? window._activeUtterances[id] : null;
-                    if (u && u.onstart) {
-                        try { u.onstart(); } catch(e) { console.error(e); }
+
+                window.SpeechRecognition = WebviewSpeechRecognition;
+                window.webkitSpeechRecognition = WebviewSpeechRecognition;
+                window._currentSpeechRecognition = null;
+
+                window._onNativeSpeechStart = function() {
+                    if (window._activeRecognition && window._activeRecognition.onstart) {
+                        window._activeRecognition.onstart();
                     }
                 };
-                
-                window._onSpeechEnd = function(id) {
-                    const u = window._activeUtterances ? window._activeUtterances[id] : null;
-                    if (u && u.onend) {
-                        try { u.onend(); } catch(e) { console.error(e); }
+
+                window._onNativeSpeechResult = function(transcript, isFinal) {
+                    if (window._activeRecognition && window._activeRecognition.onresult) {
+                        const event = {
+                            resultIndex: 0,
+                            results: [[{ transcript: transcript, confidence: 1.0 }]]
+                        };
+                        event.results[0].isFinal = isFinal;
+                        window._activeRecognition.onresult(event);
                     }
-                    if (window._activeUtterances) delete window._activeUtterances[id];
                 };
-                
-                window._onSpeechError = function(id) {
-                    const u = window._activeUtterances ? window._activeUtterances[id] : null;
-                    if (u && u.onerror) {
-                        try { u.onerror(); } catch(e) { console.error(e); }
+
+                window._onNativeSpeechError = function(errorMsg) {
+                    if (window._activeRecognition && window._activeRecognition.onerror) {
+                        window._activeRecognition.onerror({ error: errorMsg });
                     }
-                    if (window._activeUtterances) delete window._activeUtterances[id];
+                };
+
+                window._onNativeSpeechEnd = function() {
+                    if (window._activeRecognition) {
+                        window._activeRecognition._isListening = false;
+                        if (window._activeRecognition.onend) {
+                            window._activeRecognition.onend();
+                        }
+                    }
+                };
+
+                const origStart = WebviewSpeechRecognition.prototype.start;
+                WebviewSpeechRecognition.prototype.start = function() {
+                    window._activeRecognition = this;
+                    origStart.call(this);
                 };
             }
 
-            // HTML5 Audio Blob Override (Fix for ElevenLabs playbacks in Android WebView)
-            if (window.AndroidAudioPlayer) {
+            if (!window.speechSynthesis) {
+                window.speechSynthesis = {
+                    speaking: false,
+                    paused: false,
+                    pending: false,
+                    speak: function(utterance) {
+                        if (window.AndroidSpeech && utterance) {
+                            this.speaking = true;
+                            window._activeUtterance = utterance;
+                            window.AndroidSpeech.speak(utterance.text, utterance.lang || 'de-DE', utterance.rate || 1.0, utterance.pitch || 1.0);
+                        }
+                    },
+                    cancel: function() {
+                        this.speaking = false;
+                        if (window.AndroidSpeech) {
+                            window.AndroidSpeech.stopSpeaking();
+                        }
+                    },
+                    pause: function() {},
+                    resume: function() {},
+                    getVoices: function() {
+                        return [
+                            { name: 'Android German', lang: 'de-DE', default: true },
+                            { name: 'Android English', lang: 'en-US', default: false }
+                        ];
+                    }
+                };
+
+                window.SpeechSynthesisUtterance = function(text) {
+                    this.text = text || '';
+                    this.lang = 'de-DE';
+                    this.rate = 1.0;
+                    this.pitch = 1.0;
+                    this.volume = 1.0;
+                    this.onstart = null;
+                    this.onend = null;
+                    this.onerror = null;
+                };
+
+                window._onNativeTtsStart = function() {
+                    window.speechSynthesis.speaking = true;
+                    if (window._activeUtterance && window._activeUtterance.onstart) {
+                        window._activeUtterance.onstart();
+                    }
+                };
+
+                window._onNativeTtsEnd = function() {
+                    window.speechSynthesis.speaking = false;
+                    if (window._activeUtterance && window._activeUtterance.onend) {
+                        window._activeUtterance.onend();
+                    }
+                };
+
+                window._onNativeTtsError = function(err) {
+                    window.speechSynthesis.speaking = false;
+                    if (window._activeUtterance && window._activeUtterance.onerror) {
+                        window._activeUtterance.onerror({ error: err });
+                    }
+                };
+            }
+        })();
+    """.trimIndent()
+    view?.evaluateJavascript(script, null)
+}
+
+private fun injectAudioPolyfill(view: WebView?) {
+    val script = """
+        (function() {
+            if (!window._nativeAudioPatched && window.AndroidAudioPlayer) {
+                window._nativeAudioPatched = true;
                 const OriginalAudio = window.Audio;
+                
                 class WebviewAudioShim {
                     constructor(src) {
+                        this._id = 'audio_' + Math.random().toString(36).substr(2, 9);
                         this._src = src || '';
+                        this._base64 = null;
                         this.onended = null;
                         this.onerror = null;
-                        this._id = Math.random().toString(36).substring(2);
                         
-                        window._activeAudioShims = window._activeAudioShims || {};
-                        window._activeAudioShims[this._id] = this;
-                        
-                        if (src) {
-                            this.src = src;
+                        if (this._src) {
+                            this.src = this._src;
                         }
                     }
                     get src() {
@@ -1209,13 +1086,17 @@ fun injectKioskPolyfills(view: WebView?) {
                     }
                     set src(val) {
                         this._src = val;
+                        if (!val) return;
+                        const shim = this;
+                        if (!window._activeAudioShims) window._activeAudioShims = {};
+                        window._activeAudioShims[this._id] = this;
+                        
                         if (val.startsWith('blob:')) {
-                            const shim = this;
                             fetch(val)
                                 .then(r => r.blob())
                                 .then(blob => {
                                     const reader = new FileReader();
-                                    reader.onloadend = function() {
+                                    reader.onloadend = () => {
                                         const base64data = reader.result.split(',')[1];
                                         shim._base64 = base64data;
                                     };
@@ -1285,6 +1166,7 @@ fun injectKioskPolyfills(view: WebView?) {
     """.trimIndent()
     view?.evaluateJavascript(script, null)
 }
+
 class AndroidAudioPlayerInterface(
     private val context: Context,
     private val webViewProvider: () -> WebView?
@@ -1297,37 +1179,29 @@ class AndroidAudioPlayerInterface(
         (context as? Activity)?.runOnUiThread {
             try {
                 stopPlaying()
-                
                 activeId = id
-                val audioBytes = Base64.decode(base64Data, Base64.DEFAULT)
-                
-                // Save to a temporary file
-                val tempFile = File.createTempFile("kiosk_audio_", ".mp3", context.cacheDir)
+                val decodedBytes = Base64.decode(base64Data, Base64.DEFAULT)
+                val tempFile = File.createTempFile("tts_audio_", ".mp3", context.cacheDir)
                 tempFile.deleteOnExit()
-                
-                FileOutputStream(tempFile).use { fos ->
-                    fos.write(audioBytes)
-                }
-                
+                FileOutputStream(tempFile).use { it.write(decodedBytes) }
+
                 mediaPlayer = MediaPlayer().apply {
                     setDataSource(tempFile.absolutePath)
                     setOnCompletionListener {
-                        sendToJs("window._onAudioEnded('$id')")
+                        notifyEnded(id)
                         tempFile.delete()
-                        stopPlaying()
                     }
                     setOnErrorListener { _, _, _ ->
-                        sendToJs("window._onAudioError('$id')")
+                        notifyError(id, "MediaPlayer error")
                         tempFile.delete()
-                        stopPlaying()
                         true
                     }
                     prepare()
                     start()
                 }
             } catch (e: Exception) {
-                Log.e("AudioInterface", "Error playing base64 audio", e)
-                sendToJs("window._onAudioError('$id')")
+                Log.e("AndroidAudioPlayer", "Error playing base64 audio", e)
+                notifyError(id, e.message ?: "Playback error")
             }
         }
     }
@@ -1335,8 +1209,12 @@ class AndroidAudioPlayerInterface(
     @JavascriptInterface
     fun pause(id: String) {
         (context as? Activity)?.runOnUiThread {
-            if (activeId == id) {
-                stopPlaying()
+            try {
+                if (activeId == id && mediaPlayer?.isPlaying == true) {
+                    mediaPlayer?.pause()
+                }
+            } catch (e: Exception) {
+                Log.e("AndroidAudioPlayer", "Error pausing audio", e)
             }
         }
     }
@@ -1345,18 +1223,152 @@ class AndroidAudioPlayerInterface(
         try {
             mediaPlayer?.stop()
             mediaPlayer?.release()
-        } catch (e: Exception) {
-            // Ignore
-        }
-        mediaPlayer = null
-        activeId = null
+            mediaPlayer = null
+        } catch (e: Exception) {}
     }
 
-    private fun sendToJs(script: String) {
-        val webView = webViewProvider()
-        webView?.post {
-            webView.evaluateJavascript(script, null)
-        }
+    private fun notifyEnded(id: String) {
+        webViewProvider()?.evaluateJavascript("if (window._onAudioEnded) window._onAudioEnded('$id');", null)
+    }
+
+    private fun notifyError(id: String, error: String) {
+        webViewProvider()?.evaluateJavascript("if (window._onAudioError) window._onAudioError('$id');", null)
     }
 }
 
+class AndroidSpeechInterface(
+    private val context: Context,
+    private val webViewProvider: () -> WebView?
+) {
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var textToSpeech: TextToSpeech? = null
+    private var isTtsReady = false
+
+    init {
+        (context as? Activity)?.runOnUiThread {
+            textToSpeech = TextToSpeech(context) { status ->
+                if (status == TextToSpeech.SUCCESS) {
+                    textToSpeech?.language = Locale.GERMAN
+                    isTtsReady = true
+                    textToSpeech?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                        override fun onStart(utteranceId: String?) {
+                            (context as? Activity)?.runOnUiThread {
+                                webViewProvider()?.evaluateJavascript("if(window._onNativeTtsStart) window._onNativeTtsStart();", null)
+                            }
+                        }
+                        override fun onDone(utteranceId: String?) {
+                            (context as? Activity)?.runOnUiThread {
+                                webViewProvider()?.evaluateJavascript("if(window._onNativeTtsEnd) window._onNativeTtsEnd();", null)
+                            }
+                        }
+                        override fun onError(utteranceId: String?) {
+                            (context as? Activity)?.runOnUiThread {
+                                webViewProvider()?.evaluateJavascript("if(window._onNativeTtsError) window._onNativeTtsError('TTS error');", null)
+                            }
+                        }
+                    })
+                }
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun startListening(lang: String) {
+        (context as? Activity)?.runOnUiThread {
+            try {
+                if (speechRecognizer == null) {
+                    speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
+                }
+
+                speechRecognizer?.setRecognitionListener(object : RecognitionListener {
+                    override fun onReadyForSpeech(params: Bundle?) {
+                        webViewProvider()?.evaluateJavascript("if(window._onNativeSpeechStart) window._onNativeSpeechStart();", null)
+                    }
+                    override fun onBeginningOfSpeech() {}
+                    override fun onRmsChanged(rmsdB: Float) {}
+                    override fun onBufferReceived(buffer: ByteArray?) {}
+                    override fun onEndOfSpeech() {}
+                    override fun onError(error: Int) {
+                        val errorMsg = when (error) {
+                            SpeechRecognizer.ERROR_AUDIO -> "audio"
+                            SpeechRecognizer.ERROR_CLIENT -> "client"
+                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "not-allowed"
+                            SpeechRecognizer.ERROR_NETWORK -> "network"
+                            SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "network"
+                            SpeechRecognizer.ERROR_NO_MATCH -> "no-speech"
+                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "busy"
+                            SpeechRecognizer.ERROR_SERVER -> "network"
+                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "no-speech"
+                            else -> "aborted"
+                        }
+                        webViewProvider()?.evaluateJavascript("if(window._onNativeSpeechError) window._onNativeSpeechError('$errorMsg');", null)
+                    }
+                    override fun onResults(results: Bundle?) {
+                        val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        if (!matches.isNullOrEmpty()) {
+                            val text = matches[0].replace("'", "\\'")
+                            webViewProvider()?.evaluateJavascript("if(window._onNativeSpeechResult) window._onNativeSpeechResult('$text', true);", null)
+                        }
+                        webViewProvider()?.evaluateJavascript("if(window._onNativeSpeechEnd) window._onNativeSpeechEnd();", null)
+                    }
+                    override fun onPartialResults(partialResults: Bundle?) {
+                        val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        if (!matches.isNullOrEmpty()) {
+                            val text = matches[0].replace("'", "\\'")
+                            webViewProvider()?.evaluateJavascript("if(window._onNativeSpeechResult) window._onNativeSpeechResult('$text', false);", null)
+                        }
+                    }
+                    override fun onEvent(eventType: Int, params: Bundle?) {}
+                })
+
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, if (lang.isNotEmpty()) lang else "de-DE")
+                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                }
+                speechRecognizer?.startListening(intent)
+            } catch (e: Exception) {
+                Log.e("AndroidSpeechInterface", "Error starting speech recognition", e)
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun stopListening() {
+        (context as? Activity)?.runOnUiThread {
+            try {
+                speechRecognizer?.stopListening()
+            } catch (e: Exception) {
+                Log.e("AndroidSpeechInterface", "Error stopping speech recognition", e)
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun speak(text: String, lang: String, rate: Float, pitch: Float) {
+        (context as? Activity)?.runOnUiThread {
+            if (!isTtsReady || textToSpeech == null) return@runOnUiThread
+            try {
+                val locale = if (lang.startsWith("en", ignoreCase = true)) Locale.US else Locale.GERMAN
+                textToSpeech?.language = locale
+                textToSpeech?.setSpeechRate(rate)
+                textToSpeech?.setPitch(pitch)
+                val utteranceId = "utt_" + System.currentTimeMillis()
+                textToSpeech?.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+            } catch (e: Exception) {
+                Log.e("AndroidSpeechInterface", "Error speaking text", e)
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun stopSpeaking() {
+        (context as? Activity)?.runOnUiThread {
+            try {
+                textToSpeech?.stop()
+            } catch (e: Exception) {
+                Log.e("AndroidSpeechInterface", "Error stopping TTS", e)
+            }
+        }
+    }
+}
