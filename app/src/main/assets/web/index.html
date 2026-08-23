@@ -3,26 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smarthome Kiosk Control</title>
+    <title>Neo Kiosk Control</title>
     <link rel="stylesheet" href="index.css">
     <link rel="icon" href="favicon.ico" type="image/x-icon">
 </head>
 <body>
-    <!-- Background glowing shapes for premium styling -->
+    <!-- Background glowing shapes -->
     <div class="bg-glow bg-glow-1"></div>
     <div class="bg-glow bg-glow-2"></div>
 
     <div class="app-container">
         <!-- 1. LOGIN SCREEN -->
         <div id="login-screen" class="glass-card login-card">
-            <h2>Kiosk Login</h2>
-            <p class="subtitle">Bitte gib das Kiosk-API-Passwort ein, um fortzufahren.</p>
+            <div style="display:flex; justify-content:flex-end; margin-bottom: 8px;">
+                <button id="login-lang-btn" class="btn secondary-btn" style="padding: 4px 10px; font-size: 12px;">🇬🇧 English</button>
+            </div>
+            <h2 data-i18n="login_title">Kiosk Login</h2>
+            <p class="subtitle" data-i18n="login_subtitle">Bitte gib das Kiosk-API-Passwort ein, um fortzufahren.</p>
             <div class="input-group">
                 <input type="password" id="api-password" placeholder="API Passwort" autofocus>
                 <span class="focus-border"></span>
             </div>
             <p id="login-error" class="error-msg"></p>
-            <button id="login-btn" class="btn primary-btn">Anmelden</button>
+            <button id="login-btn" class="btn primary-btn" data-i18n="login_btn">Anmelden</button>
         </div>
 
         <!-- 2. DASHBOARD PANEL -->
@@ -30,14 +33,15 @@
             <!-- Header -->
             <header class="dashboard-header glass-card">
                 <div class="header-left">
-                    <h1>Smarthome Kiosk</h1>
+                    <h1>Neo Kiosk</h1>
                     <div class="status-indicator">
                         <span class="dot active"></span>
-                        <span class="status-text">Verbunden</span>
+                        <span class="status-text" id="status-text" data-i18n="status_connected">Verbunden</span>
                     </div>
                 </div>
-                <div class="header-right">
-                    <button id="logout-btn" class="btn secondary-btn">Abmelden</button>
+                <div class="header-right" style="display: flex; gap: 10px; align-items: center;">
+                    <button id="dash-lang-btn" class="btn secondary-btn" style="padding: 6px 12px; font-size: 13px;">🇬🇧 EN</button>
+                    <button id="logout-btn" class="btn secondary-btn" data-i18n="logout_btn">Abmelden</button>
                 </div>
             </header>
 
@@ -45,97 +49,97 @@
             <main class="dashboard-grid">
                 <!-- Card 1: System Status -->
                 <section class="glass-card grid-card status-card">
-                    <h3>Systemstatus</h3>
+                    <h3 data-i18n="card_status_title">Systemstatus</h3>
                     <div class="status-items">
                         <div class="status-item">
-                            <span class="label">Display:</span>
-                            <span id="stat-screen" class="badge">Laden...</span>
+                            <span class="label" data-i18n="stat_screen">Display:</span>
+                            <span id="stat-screen" class="badge">...</span>
                         </div>
                         <div class="status-item">
-                            <span class="label">Batterie:</span>
+                            <span class="label" data-i18n="stat_battery">Batterie:</span>
                             <div class="battery-container">
                                 <div class="battery-body">
                                     <div id="battery-level-bar" class="battery-level"></div>
                                 </div>
-                                <span id="stat-battery" class="value">Laden...</span>
+                                <span id="stat-battery" class="value">...</span>
                                 <span id="charging-icon" class="charging-icon hidden">⚡</span>
                             </div>
                         </div>
                         <div class="status-item">
-                            <span class="label">Freier Speicher:</span>
-                            <span id="stat-ram" class="value">Laden...</span>
+                            <span class="label" data-i18n="stat_ram">Freier Speicher:</span>
+                            <span id="stat-ram" class="value">...</span>
                         </div>
                         <div class="status-item">
-                            <span class="label">Tablet-Modell:</span>
-                            <span id="stat-model" class="value">Laden...</span>
+                            <span class="label" data-i18n="stat_model">Tablet-Modell:</span>
+                            <span id="stat-model" class="value">...</span>
                         </div>
                     </div>
                 </section>
 
                 <!-- Card 2: Display Control -->
                 <section class="glass-card grid-card control-card">
-                    <h3>Display Steuerung</h3>
-                    <p class="card-desc">Schalte den Bildschirm des Tablets ein oder aus.</p>
+                    <h3 data-i18n="card_display_title">Display Steuerung</h3>
+                    <p class="card-desc" data-i18n="card_display_desc">Schalte den Bildschirm des Tablets ein oder aus.</p>
                     <div class="btn-group">
-                        <button id="screen-on-btn" class="btn success-btn">Bildschirm Ein</button>
-                        <button id="screen-off-btn" class="btn danger-btn">Bildschirm Aus</button>
+                        <button id="screen-on-btn" class="btn success-btn" data-i18n="btn_screen_on">Bildschirm Ein</button>
+                        <button id="screen-off-btn" class="btn danger-btn" data-i18n="btn_screen_off">Bildschirm Aus</button>
                     </div>
                 </section>
 
                 <!-- Card 3: Audio Control -->
                 <section class="glass-card grid-card audio-card">
-                    <h3>Lautstärke</h3>
-                    <p class="card-desc">Passe die Musik- und Medienlautstärke an.</p>
+                    <h3 data-i18n="card_volume_title">Lautstärke</h3>
+                    <p class="card-desc" data-i18n="card_volume_desc">Passe die Musik- und Medienlautstärke an.</p>
                     <div class="volume-slider-container">
                         <span class="volume-icon">🔊</span>
                         <input type="range" id="volume-slider" min="0" max="100" value="50">
                         <span id="volume-val" class="volume-val-text">50%</span>
                     </div>
                     <div class="btn-group-center">
-                        <button id="volume-mute-btn" class="btn secondary-btn">Stummschalten</button>
+                        <button id="volume-mute-btn" class="btn secondary-btn" data-i18n="btn_mute">Stummschalten</button>
                     </div>
                 </section>
 
                 <!-- Card 4: Text-To-Speech Console -->
                 <section class="glass-card grid-card tts-card">
-                    <h3>Sprachausgabe (TTS)</h3>
-                    <p class="card-desc">Lass das Tablet eine Nachricht vorlesen.</p>
+                    <h3 data-i18n="card_tts_title">Sprachausgabe (TTS)</h3>
+                    <p class="card-desc" data-i18n="card_tts_desc">Lass das Tablet eine Nachricht vorlesen.</p>
                     <div class="input-group">
                         <textarea id="tts-text" placeholder="Gib hier einen Text ein..." rows="3"></textarea>
                     </div>
                     <div class="preset-phrases">
-                        <span class="preset-tag" data-phrase="Es hat an der Tür geklingelt!">🔔 Klingel</span>
-                        <span class="preset-tag" data-phrase="Das Essen ist fertig, bitte kommen!">🍽️ Essen fertig</span>
-                        <span class="preset-tag" data-phrase="Achtung! Ein Fenster im Erdgeschoss steht noch offen!">⚠️ Fenster offen</span>
-                        <span class="preset-tag" data-phrase="Guten Morgen Steffen, das Dashboard ist bereit!">☀️ Guten Morgen</span>
+                        <span class="preset-tag" data-phrase-de="Es hat an der Tür geklingelt!" data-phrase-en="Someone rang the doorbell!">🔔 Klingel</span>
+                        <span class="preset-tag" data-phrase-de="Das Essen ist fertig, bitte kommen!" data-phrase-en="Dinner is ready, please come!">🍽️ Essen</span>
+                        <span class="preset-tag" data-phrase-de="Achtung! Ein Fenster im Erdgeschoss steht noch offen!" data-phrase-en="Warning! A window on the ground floor is open!">⚠️ Fenster</span>
+                        <span class="preset-tag" data-phrase-de="Guten Morgen, das Dashboard ist bereit!" data-phrase-en="Good morning, the dashboard is ready!">☀️ Morgen</span>
                     </div>
-                    <button id="tts-send-btn" class="btn primary-btn w-100">Nachricht vorlesen</button>
+                    <button id="tts-send-btn" class="btn primary-btn w-100" data-i18n="btn_speak">Nachricht vorlesen</button>
                 </section>
 
                 <!-- Card 5: Kiosk Operations -->
                 <section class="glass-card grid-card ops-card">
-                    <h3>System Aktionen</h3>
-                    <p class="card-desc">Steuere das Kiosk-System und die Web-Anzeige.</p>
-                    <button id="reload-webview-btn" class="btn warning-btn w-100">WebView neu laden</button>
+                    <h3 data-i18n="card_ops_title">System Aktionen</h3>
+                    <p class="card-desc" data-i18n="card_ops_desc">Steuere das Kiosk-System und die Web-Anzeige.</p>
+                    <button id="reload-webview-btn" class="btn warning-btn w-100" data-i18n="btn_reload_webview">WebView neu laden</button>
                 </section>
 
                 <!-- Card 6: Kiosk Settings -->
                 <section class="glass-card grid-card settings-card">
-                    <h3>Kiosk Einstellungen</h3>
-                    <p class="card-desc">Konfiguriere die Dashboard-URL und die SSL-Sicherheit des Tablets.</p>
+                    <h3 data-i18n="card_settings_title">Kiosk Einstellungen</h3>
+                    <p class="card-desc" data-i18n="card_settings_desc">Konfiguriere die Dashboard-URL und die SSL-Sicherheit des Tablets.</p>
                     <div class="input-group">
-                        <label for="kiosk-url-input" class="label-text" style="display:block; font-size:12px; color:var(--text-secondary); margin-bottom:8px;">Dashboard URL:</label>
+                        <label for="kiosk-url-input" class="label-text" style="display:block; font-size:12px; color:var(--text-secondary); margin-bottom:8px;" data-i18n="label_dash_url">Dashboard URL:</label>
                         <input type="text" id="kiosk-url-input" placeholder="http://192.168.178.101:8080" style="padding:10px; font-size:14px;">
                     </div>
                     <div class="checkbox-group" style="display:flex; align-items:center; gap:8px; margin:16px 0 8px 0;">
                         <input type="checkbox" id="kiosk-ssl-checkbox" style="width:16px; height:16px; accent-color:var(--primary); cursor:pointer;">
-                        <label for="kiosk-ssl-checkbox" style="font-size:13px; color:var(--text-secondary); cursor:pointer;">SSL-Fehler ignorieren</label>
+                        <label for="kiosk-ssl-checkbox" style="font-size:13px; color:var(--text-secondary); cursor:pointer;" data-i18n="label_ignore_ssl">SSL-Fehler ignorieren</label>
                     </div>
                     <div class="checkbox-group" style="display:flex; align-items:center; gap:8px; margin:0 0 16px 0;">
                         <input type="checkbox" id="kiosk-pin-checkbox" style="width:16px; height:16px; accent-color:var(--primary); cursor:pointer;">
-                        <label for="kiosk-pin-checkbox" style="font-size:13px; color:var(--text-secondary); cursor:pointer;">PIN-Schutz für Einstellungen aktivieren</label>
+                        <label for="kiosk-pin-checkbox" style="font-size:13px; color:var(--text-secondary); cursor:pointer;" data-i18n="label_pin_protection">PIN-Schutz für Einstellungen aktivieren</label>
                     </div>
-                    <button id="save-settings-btn" class="btn primary-btn w-100" style="margin-top:auto;">Einstellungen speichern</button>
+                    <button id="save-settings-btn" class="btn primary-btn w-100" style="margin-top:auto;" data-i18n="btn_save_settings">Einstellungen speichern</button>
                 </section>
             </main>
         </div>

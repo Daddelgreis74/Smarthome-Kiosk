@@ -39,6 +39,8 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import com.example.smarthomekiosk.ui.setup.SetupWizardDialog
+import com.example.smarthomekiosk.i18n.AppLanguage
+import com.example.smarthomekiosk.i18n.Strings
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -338,11 +340,11 @@ fun MainScreenContent(
                                 }
                             }),
                             isError = isError,
-                            placeholder = { Text("Passwort") },
+                            placeholder = { Text(Strings.pinPlaceholder(effectiveLang)) },
                             modifier = Modifier.fillMaxWidth()
                         )
                         if (isError) {
-                            Text("Falsches Passwort!", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                            Text(Strings.pinWrong(effectiveLang), color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                         }
                     }
                 },
@@ -355,7 +357,7 @@ fun MainScreenContent(
                             isError = true
                         }
                     }) {
-                        Text("Bestätigen")
+                        Text(Strings.confirm(effectiveLang))
                     }
                 },
                 dismissButton = {
@@ -393,7 +395,7 @@ fun MainScreenContent(
                         if (updateInfo.isUpdateAvailable && !updateInfo.apkDownloadUrl.isNullOrEmpty()) {
                             showUpdateDialog = updateInfo
                         } else {
-                            Toast.makeText(context, "Kiosk ist auf dem neuesten Stand (v$currentAppVersion)!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, Strings.upToDateToast(effectiveLang, currentAppVersion), Toast.LENGTH_SHORT).show()
                         }
                     }
                 },
@@ -408,15 +410,15 @@ fun MainScreenContent(
         showUpdateDialog?.let { info ->
             AlertDialog(
                 onDismissRequest = { showUpdateDialog = null },
-                title = { Text("Update verfügbar (v${info.latestVersion})") },
+                title = { Text(Strings.updateAvailableTitle(effectiveLang, info.latestVersion)) },
                 text = {
                     Column {
-                        Text("Eine neue Version von Neo Kiosk steht bereit.", fontWeight = FontWeight.Medium)
+                        Text(Strings.updateAvailableDesc(effectiveLang), fontWeight = FontWeight.Medium)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Deine Version: $currentAppVersion")
                         Text("Neueste Version: ${info.latestVersion}")
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text("Changelog / Versionshinweise:", fontWeight = FontWeight.SemiBold)
+                        Text(Strings.updateChangelog(effectiveLang), fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(4.dp))
                         Box(
                             modifier = Modifier
@@ -449,7 +451,7 @@ fun MainScreenContent(
                             }
                         }
                     ) {
-                        Text("Herunterladen & Installieren")
+                        Text(Strings.updateInstallBtn(effectiveLang))
                     }
                 },
                 dismissButton = {
@@ -596,7 +598,7 @@ fun SettingsDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Seite neu laden")
+                            Text(Strings.reloadPageBtn(effectiveLang))
                             Text("Aktualisiert die geladene Webseite im Kiosk sofort", fontSize = 12.sp, color = Color.Gray)
                         }
                         Button(onClick = onReload) {
@@ -836,12 +838,12 @@ fun SettingsDialog(
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
                     // 5. Setup Wizard
-                    Text("Einrichtungs-Assistent", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(vertical = 8.dp))
+                    Text(Strings.wizardTitle(effectiveLang), fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(vertical = 8.dp))
                     OutlinedButton(
                         onClick = onStartSetupWizard,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Einrichtungs-Assistent erneut ausführen")
+                        Text(Strings.rerunWizardBtn(effectiveLang))
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -860,7 +862,7 @@ fun SettingsDialog(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                     ) {
-                        Text("App schließen")
+                        Text(Strings.closeApp(effectiveLang))
                     }
                     
                     // Cancel & Save Buttons (right-aligned)
@@ -891,7 +893,7 @@ fun SettingsDialog(
                                 onSave()
                             }
                         ) {
-                            Text("Speichern & Schließen")
+                            Text(Strings.saveAndClose(effectiveLang))
                         }
                     }
                 }

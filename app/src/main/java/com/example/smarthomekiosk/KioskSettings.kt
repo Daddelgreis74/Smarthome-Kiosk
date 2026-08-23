@@ -20,7 +20,12 @@ class KioskSettings(context: Context) {
         const val KEY_MDNS_ENABLED = "mdns_enabled"
         const val KEY_IGNORE_SSL_ERRORS = "ignore_ssl_errors"
         const val KEY_PIN_PROTECTION_ENABLED = "pin_protection_enabled"
+        const val KEY_APP_LANGUAGE = "app_language"
     }
+
+    var appLanguage: String
+        get() = prefs.getString(KEY_APP_LANGUAGE, "auto") ?: "auto"
+        set(value) = prefs.edit().putString(KEY_APP_LANGUAGE, value).apply()
 
     var dashboardUrl: String
         get() = prefs.getString(KEY_DASHBOARD_URL, "") ?: ""

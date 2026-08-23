@@ -1,6 +1,7 @@
 package com.example.smarthomekiosk.ui.setup
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -39,6 +40,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import com.example.smarthomekiosk.KioskSettings
+import com.example.smarthomekiosk.i18n.AppLanguage
+import com.example.smarthomekiosk.i18n.Strings
 import com.example.smarthomekiosk.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -69,6 +72,9 @@ fun SetupWizardDialog(
         val totalSteps = 5
 
         // State holder across steps
+        var appLanguage by remember { mutableStateOf(settings.appLanguage) }
+        val effectiveLang = Strings.getEffectiveLanguage(appLanguage)
+
         var remotePassword by remember { mutableStateOf(settings.httpPassword.ifEmpty { "" }) }
         var settingsPin by remember { mutableStateOf(settings.settingsPassword.ifEmpty { "1234" }) }
         var pinProtection by remember { mutableStateOf(settings.pinProtectionEnabled) }
@@ -142,8 +148,8 @@ fun SetupWizardDialog(
                             }
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
-                                Text("Neo Kiosk", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AuroraTextPrimary)
-                                Text("Einrichtungs-Assistent", fontSize = 12.sp, color = AuroraCyan)
+                                Text(Strings.appTitle(effectiveLang), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AuroraTextPrimary)
+                                Text(Strings.wizardTitle(effectiveLang), fontSize = 12.sp, color = AuroraCyan)
                             }
                         }
 
@@ -219,12 +225,16 @@ fun SetupWizardDialog(
                             ) {
                                 when (step) {
                                     1 -> StepWelcome(
+                                        lang = effectiveLang,
+                                        appLanguage = appLanguage,
+                                        onLanguageChange = { appLanguage = it },
                                         hasCamera = hasCameraPermission,
                                         hasMic = hasMicPermission,
                                         onRequestCamera = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) },
                                         onRequestMic = { micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }
                                     )
                                     2 -> StepSecurity(
+                                        lang = effectiveLang,
                                         remotePassword = remotePassword,
                                         onRemotePasswordChange = { remotePassword = it; validationError = null },
                                         pin = settingsPin,
@@ -233,6 +243,7 @@ fun SetupWizardDialog(
                                         onPinProtectionChange = { pinProtection = it }
                                     )
                                     3 -> StepDashboardConnection(
+                                        lang = effectiveLang,
                                         url = dashboardUrl,
                                         onUrlChange = { dashboardUrl = it; connectionTestResult = null; validationError = null },
                                         ignoreSsl = ignoreSsl,
@@ -241,19 +252,20 @@ fun SetupWizardDialog(
                                         testResult = connectionTestResult,
                                         onTestConnection = {
                                             if (dashboardUrl.isBlank()) {
-                                                validationError = "Bitte gib eine gültige URL ein."
+                                                validationError = Strings.errUrlEmpty(effectiveLang)
                                                 return@StepDashboardConnection
                                             }
                                             isTestingConnection = true
                                             connectionTestResult = null
                                             scope.launch {
-                                                val result = testUrlConnection(dashboardUrl, ignoreSsl)
+                                                val result = testUrlConnection(dashboardUrl, ignoreSsl, effectiveLang)
                                                 isTestingConnection = false
                                                 connectionTestResult = result
                                             }
                                         }
                                     )
                                     4 -> StepKioskBehavior(
+                                        lang = effectiveLang,
                                         timeout = screenTimeout,
                                         onTimeoutChange = { screenTimeout = it },
                                         offMethod = screenOffMethod,
@@ -264,6 +276,7 @@ fun SetupWizardDialog(
                                         onSensitivityChange = { motionSensitivity = it }
                                     )
                                     5 -> StepSummary(
+                                        lang = effectiveLang,
                                         remotePassword = remotePassword,
                                         pin = settingsPin,
                                         pinProtection = pinProtection,
@@ -307,7 +320,7 @@ fun SetupWizardDialog(
                             ) {
                                 Icon(Icons.Default.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Zurück")
+                                Text(Strings.back(effectiveLang))
                             }
                         } else {
                             Spacer(modifier = Modifier.width(1.dp))
@@ -319,18 +332,18 @@ fun SetupWizardDialog(
                                 when (currentStep) {
                                     2 -> {
                                         if (remotePassword.trim().length < 4) {
-                                            validationError = "Das Remote-Admin-Passwort muss mindestens 4 Zeichen lang sein."
+                                            validationError = Strings.errRemotePassLength(effectiveLang)
                                             return@Button
                                         }
                                         if (settingsPin.trim().isEmpty()) {
-                                            validationError = "Die Einstellungen-PIN darf nicht leer sein."
+                                            validationError = Strings.errPinEmpty(effectiveLang)
                                             return@Button
                                         }
                                     }
                                     3 -> {
                                         val trimmedUrl = dashboardUrl.trim()
                                         if (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://")) {
-                                            validationError = "Die Dashboard-URL muss mit http:// oder https:// beginnen."
+                                            validationError = Strings.errUrlProtocol(effectiveLang)
                                             return@Button
                                         }
                                     }
@@ -340,6 +353,7 @@ fun SetupWizardDialog(
                                     currentStep++
                                 } else {
                                     // Save all settings and finish
+                                    settings.appLanguage = appLanguage
                                     settings.httpPassword = remotePassword.trim()
                                     settings.settingsPassword = settingsPin.trim()
                                     settings.pinProtectionEnabled = pinProtection
@@ -350,7 +364,7 @@ fun SetupWizardDialog(
                                     settings.motionDetectionEnabled = motionDetection
                                     settings.motionDetectionSensitivity = motionSensitivity.toInt()
 
-                                    Toast.makeText(context, "Kiosk-Einrichtung erfolgreich abgeschlossen!", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, Strings.setupCompletedToast(effectiveLang), Toast.LENGTH_SHORT).show()
                                     onComplete()
                                 }
                             },
@@ -361,7 +375,7 @@ fun SetupWizardDialog(
                             )
                         ) {
                             Text(
-                                text = if (currentStep == totalSteps) "Fertigstellen & Starten" else "Weiter",
+                                text = if (currentStep == totalSteps) Strings.finishAndStart(effectiveLang) else Strings.next(effectiveLang),
                                 fontWeight = FontWeight.Bold
                             )
                             if (currentStep < totalSteps) {
@@ -377,31 +391,71 @@ fun SetupWizardDialog(
 }
 
 // ----------------------------------------------------------------------------
-// Step 1: Welcome & Permissions
+// Step 1: Welcome & Language & Permissions
 // ----------------------------------------------------------------------------
 @Composable
 private fun StepWelcome(
+    lang: String,
+    appLanguage: String,
+    onLanguageChange: (String) -> Unit,
     hasCamera: Boolean,
     hasMic: Boolean,
     onRequestCamera: () -> Unit,
     onRequestMic: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text("Willkommen bei Neo Kiosk", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AuroraTextPrimary)
+        Text(Strings.step1Title(lang), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AuroraTextPrimary)
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-            "Dieser Assistent richtet dein Tablet optimal als Smart Home Kiosk-Terminal ein. Alle Designs und Steuerelemente sind auf das futuristische Neo Aurora Design abgestimmt.",
+            Strings.step1Desc(lang),
             fontSize = 14.sp,
             color = AuroraTextMuted
         )
 
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Language Switcher in Step 1
+        Text(Strings.step1LangSelect(lang), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AuroraCyan)
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            val languages = listOf(
+                AppLanguage.AUTO to "Auto (System)",
+                AppLanguage.DE to "Deutsch 🇩🇪",
+                AppLanguage.EN to "English 🇬🇧"
+            )
+            languages.forEach { (al, label) ->
+                val isSelected = appLanguage == al.code
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isSelected) AuroraCyan else Color(0xFF0F172A))
+                        .border(1.dp, if (isSelected) Color.Transparent else AuroraCardBorder, RoundedCornerShape(12.dp))
+                        .clickable { onLanguageChange(al.code) }
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = label,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isSelected) Color.Black else AuroraTextPrimary
+                    )
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(20.dp))
-        Text("Erforderliche Berechtigungen", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = AuroraCyan)
+        Text(Strings.step1PermissionsTitle(lang), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AuroraCyan)
         Spacer(modifier = Modifier.height(10.dp))
 
         PermissionCard(
-            title = "Kamera-Berechtigung",
-            desc = "Wird für die optische Bewegungserkennung genutzt, um das Display bei Annäherung einzuschalten.",
+            lang = lang,
+            title = Strings.permCameraTitle(lang),
+            desc = Strings.permCameraDesc(lang),
             icon = Icons.Default.CameraAlt,
             isGranted = hasCamera,
             onRequest = onRequestCamera
@@ -410,8 +464,9 @@ private fun StepWelcome(
         Spacer(modifier = Modifier.height(12.dp))
 
         PermissionCard(
-            title = "Mikrofon-Berechtigung",
-            desc = "Ermöglicht Spracheingaben für den integrierten Sprachassistenten J.A.R.V.I.S.",
+            lang = lang,
+            title = Strings.permMicTitle(lang),
+            desc = Strings.permMicDesc(lang),
             icon = Icons.Default.Mic,
             isGranted = hasMic,
             onRequest = onRequestMic
@@ -421,6 +476,7 @@ private fun StepWelcome(
 
 @Composable
 private fun PermissionCard(
+    lang: String,
     title: String,
     desc: String,
     icon: ImageVector,
@@ -459,7 +515,7 @@ private fun PermissionCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.CheckCircle, contentDescription = null, tint = AuroraEmerald, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Erteilt", fontSize = 12.sp, color = AuroraEmerald, fontWeight = FontWeight.Bold)
+                    Text(Strings.granted(lang), fontSize = 12.sp, color = AuroraEmerald, fontWeight = FontWeight.Bold)
                 }
             } else {
                 Button(
@@ -467,7 +523,7 @@ private fun PermissionCard(
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = AuroraCyan, contentColor = Color.Black)
                 ) {
-                    Text("Erlauben", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(Strings.allow(lang), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -479,6 +535,7 @@ private fun PermissionCard(
 // ----------------------------------------------------------------------------
 @Composable
 private fun StepSecurity(
+    lang: String,
     remotePassword: String,
     onRemotePasswordChange: (String) -> Unit,
     pin: String,
@@ -489,10 +546,10 @@ private fun StepSecurity(
     var passwordVisible by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text("Sicherheit & Zugriffsschutz", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AuroraTextPrimary)
+        Text(Strings.step2Title(lang), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AuroraTextPrimary)
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-            "Vergib Passwörter, um die Fernsteuerungs-API und die lokalen Tablet-Einstellungen vor unbefugtem Zugriff zu schützen.",
+            Strings.step2Desc(lang),
             fontSize = 14.sp,
             color = AuroraTextMuted
         )
@@ -500,15 +557,15 @@ private fun StepSecurity(
         Spacer(modifier = Modifier.height(20.dp))
 
         // Remote Password
-        Text("1. Remote-Admin Passwort (API & Web-Steuerung)", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AuroraCyan)
+        Text(Strings.remotePassTitle(lang), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AuroraCyan)
         Spacer(modifier = Modifier.height(4.dp))
-        Text("Wird benötigt, wenn du das Tablet über die Weboberfläche oder per HTTP-API fernsteuerst.", fontSize = 12.sp, color = AuroraTextMuted)
+        Text(Strings.remotePassDesc(lang), fontSize = 12.sp, color = AuroraTextMuted)
         Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(
             value = remotePassword,
             onValueChange = onRemotePasswordChange,
-            label = { Text("Remote-Passwort (mind. 4 Zeichen)") },
+            label = { Text(Strings.remotePassLabel(lang)) },
             placeholder = { Text("z.B. MeinGeheimesKioskPasswort") },
             singleLine = true,
             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -527,9 +584,9 @@ private fun StepSecurity(
         Spacer(modifier = Modifier.height(24.dp))
 
         // Local Settings PIN
-        Text("2. Einstellungs-PIN (Tablet-Menü)", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AuroraCyan)
+        Text(Strings.settingsPinTitle(lang), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AuroraCyan)
         Spacer(modifier = Modifier.height(4.dp))
-        Text("Wird abgefragt, wenn du auf dem Tablet vom linken Rand wischt, um die Kiosk-Einstellungen zu öffnen.", fontSize = 12.sp, color = AuroraTextMuted)
+        Text(Strings.settingsPinDesc(lang), fontSize = 12.sp, color = AuroraTextMuted)
         Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(
@@ -539,7 +596,7 @@ private fun StepSecurity(
                     onPinChange(it)
                 }
             },
-            label = { Text("Einstellungen-PIN (Standard: 1234)") },
+            label = { Text(Strings.settingsPinLabel(lang)) },
             placeholder = { Text("1234") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -563,8 +620,8 @@ private fun StepSecurity(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Column {
-                Text("PIN-Schutz für Einstellungen aktivieren", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = AuroraTextPrimary)
-                Text("Wenn deaktiviert, öffnet sich das Menü sofort ohne Abfrage.", fontSize = 11.sp, color = AuroraTextMuted)
+                Text(Strings.pinProtectionToggle(lang), fontSize = 14.sp, fontWeight = FontWeight.Medium, color = AuroraTextPrimary)
+                Text(Strings.pinProtectionToggleDesc(lang), fontSize = 11.sp, color = AuroraTextMuted)
             }
         }
     }
@@ -575,6 +632,7 @@ private fun StepSecurity(
 // ----------------------------------------------------------------------------
 @Composable
 private fun StepDashboardConnection(
+    lang: String,
     url: String,
     onUrlChange: (String) -> Unit,
     ignoreSsl: Boolean,
@@ -584,10 +642,10 @@ private fun StepDashboardConnection(
     onTestConnection: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text("Dashboard-Verbindung", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AuroraTextPrimary)
+        Text(Strings.step3Title(lang), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AuroraTextPrimary)
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-            "Gib die Web-Adresse deines SmartHome-Dashboards (z. B. auf deinem TrueNAS Server oder Raspberry Pi) ein.",
+            Strings.step3Desc(lang),
             fontSize = 14.sp,
             color = AuroraTextMuted
         )
@@ -597,7 +655,7 @@ private fun StepDashboardConnection(
         OutlinedTextField(
             value = url,
             onValueChange = onUrlChange,
-            label = { Text("Dashboard Server URL") },
+            label = { Text(Strings.dashboardUrlLabel(lang)) },
             placeholder = { Text("http://192.168.178.100:8443") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
@@ -620,8 +678,8 @@ private fun StepDashboardConnection(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Column {
-                Text("SSL-Zertifikatsfehler ignorieren", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = AuroraTextPrimary)
-                Text("Empfohlen für lokale IP-Adressen und selbstsignierte HTTPS-Zertifikate.", fontSize = 11.sp, color = AuroraTextMuted)
+                Text(Strings.ignoreSslToggle(lang), fontSize = 14.sp, fontWeight = FontWeight.Medium, color = AuroraTextPrimary)
+                Text(Strings.ignoreSslToggleDesc(lang), fontSize = 11.sp, color = AuroraTextMuted)
             }
         }
 
@@ -640,11 +698,11 @@ private fun StepDashboardConnection(
                 if (isTesting) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Teste...")
+                    Text(Strings.testingConnection(lang))
                 } else {
                     Icon(Icons.Default.NetworkCheck, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Verbindung testen")
+                    Text(Strings.testConnectionBtn(lang))
                 }
             }
 
@@ -683,6 +741,7 @@ private fun StepDashboardConnection(
 // ----------------------------------------------------------------------------
 @Composable
 private fun StepKioskBehavior(
+    lang: String,
     timeout: Int,
     onTimeoutChange: (Int) -> Unit,
     offMethod: String,
@@ -693,10 +752,10 @@ private fun StepKioskBehavior(
     onSensitivityChange: (Float) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text("Kiosk & Display-Verhalten", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AuroraTextPrimary)
+        Text(Strings.step4Title(lang), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AuroraTextPrimary)
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-            "Lege fest, wie und wann das Display gedimmt bzw. über die Kamera-Bewegungserkennung wieder aufgeweckt wird.",
+            Strings.step4Desc(lang),
             fontSize = 14.sp,
             color = AuroraTextMuted
         )
@@ -704,10 +763,16 @@ private fun StepKioskBehavior(
         Spacer(modifier = Modifier.height(20.dp))
 
         // Screen Timeout
-        Text("Display-Timeout (Inaktivität)", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AuroraCyan)
+        Text(Strings.screenTimeoutLabel(lang), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AuroraCyan)
         Spacer(modifier = Modifier.height(8.dp))
 
-        val timeoutOptions = listOf(0 to "Nie", 1 to "1 Min", 2 to "2 Min", 5 to "5 Min", 10 to "10 Min")
+        val timeoutOptions = listOf(
+            0 to Strings.timeoutNever(lang),
+            1 to Strings.timeoutMin(lang, 1),
+            2 to Strings.timeoutMin(lang, 2),
+            5 to Strings.timeoutMin(lang, 5),
+            10 to Strings.timeoutMin(lang, 10)
+        )
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -737,7 +802,7 @@ private fun StepKioskBehavior(
         Spacer(modifier = Modifier.height(20.dp))
 
         // Screen Off Method
-        Text("Ausschalt-Methode", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AuroraCyan)
+        Text(Strings.screenOffMethodLabel(lang), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AuroraCyan)
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(
@@ -753,8 +818,8 @@ private fun StepKioskBehavior(
                 colors = CardDefaults.cardColors(containerColor = if (isFake) AuroraCyan.copy(alpha = 0.1f) else Color(0xFF0F172A))
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
-                    Text("Fake / Schwarzbild (Empfohlen)", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = AuroraTextPrimary)
-                    Text("Sofortiges Aufwachen bei Berührung ohne System-Lock.", fontSize = 11.sp, color = AuroraTextMuted)
+                    Text(Strings.methodFakeTitle(lang), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = AuroraTextPrimary)
+                    Text(Strings.methodFakeDesc(lang), fontSize = 11.sp, color = AuroraTextMuted)
                 }
             }
 
@@ -767,8 +832,8 @@ private fun StepKioskBehavior(
                 colors = CardDefaults.cardColors(containerColor = if (isNative) AuroraCyan.copy(alpha = 0.1f) else Color(0xFF0F172A))
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
-                    Text("Native Bildschirmsperre", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = AuroraTextPrimary)
-                    Text("Schaltet das Display via Device-Admin komplett aus.", fontSize = 11.sp, color = AuroraTextMuted)
+                    Text(Strings.methodNativeTitle(lang), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = AuroraTextPrimary)
+                    Text(Strings.methodNativeDesc(lang), fontSize = 11.sp, color = AuroraTextMuted)
                 }
             }
         }
@@ -791,14 +856,14 @@ private fun StepKioskBehavior(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column {
-                Text("Kamera-Bewegungserkennung", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AuroraTextPrimary)
-                Text("Weckt das Display automatisch bei Bewegung vor dem Tablet auf.", fontSize = 11.sp, color = AuroraTextMuted)
+                Text(Strings.motionDetectionToggle(lang), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AuroraTextPrimary)
+                Text(Strings.motionDetectionDesc(lang), fontSize = 11.sp, color = AuroraTextMuted)
             }
         }
 
         if (motionEnabled) {
             Spacer(modifier = Modifier.height(12.dp))
-            Text("Empfindlichkeit: ${motionSensitivity.toInt()}%", fontSize = 13.sp, color = AuroraTextMuted)
+            Text(Strings.motionSensitivity(lang, motionSensitivity.toInt()), fontSize = 13.sp, color = AuroraTextMuted)
             Slider(
                 value = motionSensitivity,
                 onValueChange = onSensitivityChange,
@@ -814,6 +879,7 @@ private fun StepKioskBehavior(
 // ----------------------------------------------------------------------------
 @Composable
 private fun StepSummary(
+    lang: String,
     remotePassword: String,
     pin: String,
     pinProtection: Boolean,
@@ -824,10 +890,10 @@ private fun StepSummary(
     motionEnabled: Boolean
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text("Zusammenfassung & Start", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AuroraTextPrimary)
+        Text(Strings.step5Title(lang), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AuroraTextPrimary)
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-            "Deine Kiosk-Konfiguration ist bereit. Bitte überprüfe die Werte vor dem Start.",
+            Strings.step5Desc(lang),
             fontSize = 14.sp,
             color = AuroraTextMuted
         )
@@ -842,19 +908,19 @@ private fun StepSummary(
             colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A))
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                SummaryRow(label = "Dashboard URL", value = dashboardUrl, icon = Icons.Default.Language)
-                SummaryRow(label = "Design-Theme", value = "Neo Aurora (Glas & Glow)", icon = Icons.Default.Palette)
-                SummaryRow(label = "SSL-Modus", value = if (ignoreSsl) "Fehler ignorieren (Aktiv)" else "Strikte Prüfung", icon = Icons.Default.Security)
-                SummaryRow(label = "Remote API Passwort", value = "••••••••", icon = Icons.Default.Lock)
-                SummaryRow(label = "Einstellungen-PIN", value = if (pinProtection) "$pin (Aktiv)" else "Deaktiviert", icon = Icons.Default.Pin)
+                SummaryRow(label = Strings.dashboardUrlLabel(lang), value = dashboardUrl, icon = Icons.Default.Language)
+                SummaryRow(label = "Design-Theme", value = Strings.summaryTheme(lang), icon = Icons.Default.Palette)
+                SummaryRow(label = "SSL-Modus", value = if (ignoreSsl) Strings.summarySslIgnored(lang) else Strings.summarySslStrict(lang), icon = Icons.Default.Security)
+                SummaryRow(label = Strings.remotePassLabel(lang), value = "••••••••", icon = Icons.Default.Lock)
+                SummaryRow(label = Strings.settingsPinLabel(lang), value = if (pinProtection) "$pin (${Strings.summaryActive(lang)})" else Strings.summaryDisabled(lang), icon = Icons.Default.Pin)
                 SummaryRow(
-                    label = "Display-Timeout",
-                    value = if (screenTimeout > 0) "$screenTimeout Minuten ($screenOffMethod)" else "Immer an",
+                    label = Strings.screenTimeoutLabel(lang),
+                    value = if (screenTimeout > 0) Strings.summaryMinutes(lang, screenTimeout, screenOffMethod) else Strings.summaryAlwaysOn(lang),
                     icon = Icons.Default.ScreenLockPortrait
                 )
                 SummaryRow(
-                    label = "Bewegungserkennung",
-                    value = if (motionEnabled) "Aktiviert (Frontkamera)" else "Deaktiviert",
+                    label = Strings.motionDetectionToggle(lang),
+                    value = if (motionEnabled) Strings.summaryMotionEnabled(lang) else Strings.summaryDisabled(lang),
                     icon = Icons.Default.MotionPhotosOn
                 )
             }
@@ -881,7 +947,7 @@ private fun SummaryRow(label: String, value: String, icon: ImageVector) {
 // ----------------------------------------------------------------------------
 // Network Test Helper
 // ----------------------------------------------------------------------------
-private suspend fun testUrlConnection(urlString: String, ignoreSsl: Boolean): Pair<Boolean, String> {
+private suspend fun testUrlConnection(urlString: String, ignoreSsl: Boolean, lang: String): Pair<Boolean, String> {
     return withContext(Dispatchers.IO) {
         try {
             val url = URL(urlString)
@@ -907,12 +973,12 @@ private suspend fun testUrlConnection(urlString: String, ignoreSsl: Boolean): Pa
             connection.connect()
             val code = connection.responseCode
             if (code in 200..399) {
-                Pair(true, "Verbindung erfolgreich! (HTTP $code)")
+                Pair(true, Strings.connSuccess(lang, code))
             } else {
-                Pair(false, "Server antwortete mit Status $code.")
+                Pair(false, Strings.connHttpError(lang, code))
             }
         } catch (e: Exception) {
-            Pair(false, "Nicht erreichbar: ${e.localizedMessage ?: "Verbindungsfehler"}")
+            Pair(false, Strings.connFailed(lang, e.localizedMessage ?: "Network error"))
         }
     }
 }
