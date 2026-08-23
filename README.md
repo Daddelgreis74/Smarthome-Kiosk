@@ -1,61 +1,59 @@
 # Neo Kiosk 📱
-> Eine hochoptimierte, futuristische Android-Kiosk-App zur perfekten Integration deines Smarthome-Dashboards mit vollem J.A.R.V.I.S.-Sprachassistenten-Support.
+> A highly optimized, futuristic Android kiosk app for the perfect integration of your smart home dashboard, featuring full J.A.R.V.I.S. voice assistant support.
 
 ![Neo Kiosk Preview](preview.jpg)
 
-**Neo Kiosk** verwandelt jedes Android-Tablet in eine dedizierte Steuerungseinheit für dein Smart Home. Sie wurde speziell entwickelt, um die typischen Restriktionen und Sicherheitsblockaden von Standard-Android-WebViews (wie Google Chrome oder Fully Kiosk) bei lokalen Dashboards zu umgehen.
+**Neo Kiosk** transforms any Android tablet into a dedicated control unit for your smart home. It was specifically designed to bypass the typical restrictions and security blocks found in standard Android WebViews (such as Google Chrome or Fully Kiosk) when using local dashboards.
 
 ---
 
-## 🌟 Warum Neo Kiosk? (Die Vorteile)
+## 🌟 Why Neo Kiosk? (The Benefits)
 
-Klassische Browser und WebViews blockieren viele Funktionen, die für ein anspruchsvolles Smarthome-Dashboard essenziens sind. **Neo Kiosk löst diese Probleme nativ:**
+Standard browsers and WebViews block many features essential for a sophisticated smart home dashboard. **Neo Kiosk solves these issues natively:**
 
-*   **🎙️ J.A.R.V.I.S. Spracherkennungs-Brücke:** Android-WebViews besitzen standardmäßig keine Unterstützung für die Browser-Spracherkennung (`webkitSpeechRecognition`). Neo Kiosk injiziert automatisch ein JavaScript-Interface, das die Aufrufe abfängt und an den **nativen Spracherkennungsdienst des Android-Tablets** tunnelt.
-*   **🔊 ElevenLabs & Audio-Blob-Fix:** WebViews blockieren das Abspielen von Audio-Blobs (`blob:http://...`) über HTML5-Audio-Elemente, da der native System-Player keinen Zugriff auf den Browser-Speicher hat. Neo Kiosk fängt diese Audio-Objekte ab, konvertiert sie in Base64 und spielt sie flüssig über den nativen Android `MediaPlayer` ab.
-*   **🗣️ Lokale Sprachausgabe (TTS-Bridge):** Die Web-Sprachausgabe (`window.speechSynthesis`) ist in WebViews oft stumm oder deaktiviert. Unsere App tunnelt alle Vorlesebefehle direkt in die native Text-to-Speech-Engine von Android.
-*   **🔒 Umgang mit selbstsignierten Zertifikaten:** Wenn das Dashboard über HTTPS mit einem selbstsignierten Zertifikat (`AUTO_SSL=true`) läuft, bricht WebView den Ladevorgang stillschweigend ab. Neo Kiosk bietet eine zuschaltbare Option, SSL-Fehler zu ignorieren.
-*   **🎵 Mixed Content Audio-Streaming:** Erlaubt das Abspielen von unverschlüsselten HTTP-Streams (wie z.B. Fritzbox Internet-Radio oder WDR 2) auf einem verschlüsselten HTTPS-Dashboard.
-*   **📷 Native Bewegungserkennung:** Die App nutzt die Frontkamera, um Bewegungen vor dem Tablet zu analysieren und das Display automatisch aus dem Standby aufzuwecken (ohne externe Bewegungsmelder).
-
----
-
-## 🛠️ Feature-Übersicht
-
-### 1. Tablet-Benutzeroberfläche
-*   **Vollbild-WebView:** Keine störenden Systemleisten oder Statusbars.
-*   **Wischgeste für Einstellungen:** Ein Wisch vom linken Bildschirmrand zur Mitte öffnet das Konfigurationsmenü.
-*   **PIN-Schutz:** Das Einstellungsmenü kann optional mit einer PIN (Standard: `1234`) gesperrt werden, um unbefugten Zugriff zu verhindern.
-*   **App schließen:** Ein Button im Einstellungsmenü erlaubt es, den Kiosk-Modus zu beenden und die App sauber zu schließen.
-*   **Direktes Reload:** Aktualisiere das Dashboard direkt über das Menü.
-*   **In-App-Update:** Prüft automatisch im Hintergrund (oder per Button-Klick in den Einstellungen) auf neuere Versionen via GitHub Releases API, lädt die APK mit einem Fortschrittsbalken herunter und stößt die native Installation an.
-
-### 2. Remote-Administration (Web-Oberfläche)
-Die App startet einen lokalen Webserver (Port `8080`), über den das Tablet bequem vom PC aus verwaltet werden kann:
-*   **Live-Status:** Anzeige von Akkustand, Ladestatus, freiem RAM und Display-Status.
-*   **Display-Steuerung:** Bildschirm remote ein- oder ausschalten.
-*   **Lautstärkeregelung:** Steuere die Systemlautstärke des Tablets.
-*   **Sprachausgabe-Konsole:** Sende Texte, die das Tablet laut vorliest.
-*   **Konfiguration:** Ändere die Dashboard-URL oder den SSL-Modus aus der Ferne.
+*   **🎙️ J.A.R.V.I.S. Voice Recognition Bridge:** By default, Android WebViews lack support for browser-based voice recognition (`webkitSpeechRecognition`). Neo Kiosk automatically injects a JavaScript interface that intercepts these calls and tunnels them to the **Android tablet's native voice recognition service**.
+*   **🔊 ElevenLabs & Audio Blob Fix:** WebViews block the playback of audio blobs (`blob:http://...`) via HTML5 audio elements because the native system player cannot access the browser's memory. Neo Kiosk intercepts these audio objects, converts them to Base64, and plays them smoothly using the native Android `MediaPlayer`.
+*   **🗣️ Local Speech Output (TTS Bridge):** Web-based speech synthesis (`window.speechSynthesis`) is often silent or disabled in WebViews. Our app tunnels all read-aloud commands directly to Android's native text-to-speech engine. *   **🔒 Handling Self-Signed Certificates:** If the dashboard runs via HTTPS using a self-signed certificate (`AUTO_SSL=true`), WebView silently aborts the loading process. Neo Kiosk offers an optional setting to ignore SSL errors.
+*   **🎵 Mixed Content Audio Streaming:** Allows playback of unencrypted HTTP streams (e.g., Fritzbox internet radio or WDR 2) on an encrypted HTTPS dashboard.
+*   **📷 Native Motion Detection:** The app uses the front-facing camera to analyze movement in front of the tablet and automatically wake the display from standby (without requiring external motion sensors).
 
 ---
 
-## 🚀 Installation & Erste Schritte
+## 🛠️ Feature Overview
 
-1.  Lade die aktuelle **`neo-kiosk.apk`** aus den [GitHub Releases](https://github.com/Daddelgreis74/smarthome-kiosk/releases) herunter.
-2.  Installiere die App auf deinem Android-Tablet (aktiviere bei Bedarf "Installation aus unbekannten Quellen").
-3.  Erteile beim ersten Start die Berechtigungen für **Kamera** (für die Bewegungserkennung) und **Mikrofon** (für J.A.R.V.I.S.).
-4.  **Fernverwaltung nutzen:**
-    *   Öffne den Browser an deinem PC und navigiere zu: `http://<tablet-ip>:8080/`
-    *   Melde dich mit dem Standard-Passwort **`admin`** an.
-    *   Trage deine Dashboard-URL ein und klicke auf "Einstellungen speichern". Das Tablet lädt dein Dashboard sofort automatisch!
+### 1. Tablet User Interface
+*   **Full-Screen WebView:** No distracting system bars or status bars.
+*   **Swipe Gesture for Settings:** Swiping from the left edge of the screen toward the center opens the configuration menu.
+*   **PIN Protection:** The settings menu can optionally be locked with a PIN (default: `1234`) to prevent unauthorized access.
+*   **Close App:** A button in the settings menu allows you to exit kiosk mode and cleanly close the app.
+*   **Direct Reload:** Refresh the dashboard directly via the menu.
+*   **In-App Update:** Automatically checks for newer versions in the background (or via a button click in the settings) using the GitHub Releases API, downloads the APK with a progress bar, and initiates the native installation.
+
+### 2. Remote Administration (Web Interface)
+The app launches a local web server (port `8080`) that allows for convenient tablet management from a PC:
+*   **Live Status:** Displays battery level, charging status, available RAM, and display status.
+*   **Display Control:** Remotely turn the screen on or off. *   **Volume Control:** Control the tablet's system volume.
+*   **Text-to-Speech Console:** Send text for the tablet to read aloud.
+*   **Configuration:** Change the dashboard URL or SSL mode remotely.
 
 ---
 
-## 🛡️ Berechtigungen & Sicherheit
-Die App benötigt folgende Android-Rechte:
-*   `RECORD_AUDIO`: Für die J.A.R.V.I.S. Spracherkennung.
-*   `CAMERA`: Für die lokale Bewegungserkennung (Bilder werden nur im RAM analysiert und **niemals** gespeichert oder übertragen).
-*   `SYSTEM_ALERT_WINDOW` (Über anderen Apps einblenden): Für die Debug-Kameravorschau.
-*   `WRITE_SETTINGS` / `DEVICE_POLICY_MANAGER`: Um das Display des Tablets hardwareseitig schlafen zu legen.
-*   `REQUEST_INSTALL_PACKAGES`: Damit die App das heruntergeladene APK-Update an den System-Installer übergeben kann.
+## 🚀 Installation & Getting Started
+
+1.  Download the latest **`neo-kiosk.apk`** from the [GitHub Releases](https://github.com/Daddelgreis74/smarthome-kiosk/releases) page.
+2.  Install the app on your Android tablet (enable "Install from unknown sources" if necessary).
+3.  Upon first launch, grant permissions for the **Camera** (for motion detection) and **Microphone** (for J.A.R.V.I.S.).
+4.  **Using Remote Management:**
+*   Open a browser on your PC and navigate to: `http://<tablet-ip>:8080/`
+*   Log in using the default password **`admin`**. 
+*   Enter your dashboard URL and click "Save Settings." The tablet will immediately load your dashboard automatically!
+
+---
+
+## 🛡️ Permissions & Security
+The app requires the following Android permissions:
+*   `RECORD_AUDIO`: For J.A.R.V.I.S. voice recognition.
+*   `CAMERA`: For local motion detection (images are analyzed only in RAM and **never** saved or transmitted).
+*   `SYSTEM_ALERT_WINDOW` (Display over other apps): For the debug camera preview.
+*   `WRITE_SETTINGS` / `DEVICE_POLICY_MANAGER`: To put the tablet display to sleep at the hardware level.
+*   `REQUEST_INSTALL_PACKAGES`: To allow the app to pass the downloaded APK update to the system installer.
