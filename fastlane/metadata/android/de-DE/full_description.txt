@@ -1,0 +1,11 @@
+Neo Kiosk verwandelt dein Android-Tablet oder Wandpanel in ein zukunftssicheres, voll ausgestattetes Smart-Home-Terminal.
+
+🌟 HAUPTFUNKTIONEN:
+• Vollbild Kiosk-Modus: Verhindert versehentliches Verlassen der Smart-Home-Oberfläche und blendet Systemleisten aus.
+• Integrierter Einrichtungs-Assistent: Schritt-für-Schritt Onboarding für Berechtigungen, Passwörter, URL und Displayverhalten.
+• Neo Aurora Theme: Modernes Cyberpunk- und Glassmorphism-Design (Cyan, Aurora-Purple & Dark Glass).
+• Optische Bewegungserkennung: Erkennt Bewegungen vor der Frontkamera und schaltet das Display automatisch ein.
+• Lokale REST-API & Web-Fernsteuerung: Integriertes Web-Panel zur Fernsteuerung von Lautstärke, Text-to-Speech (TTS), Display und Systemaktionen im lokalen Netzwerk.
+• J.A.R.V.I.S. Sprachassistent-Integration: Native Web-Polyfills für Spracherkennung und Sprachausgabe.
+• mDNS / Zero-Config: Findet Dienste im lokalen Netzwerk automatisch.
+• Zweisprachig: Vollständig in Deutsch und Englisch verfügbar.

@@ -1,0 +1,18 @@
+AutoName: Neo Kiosk
+Summary: Smart Home Kiosk & Wallpanel App mit Neo Aurora Design
+Description: |-
+  Neo Kiosk verwandelt dein Android-Tablet oder Smartphone in ein voll ausgestattetes Smart Home Wand-Terminal.
+  Optimiert für das Smart Home Dashboard mit Neo Aurora Design, lokaler REST-Fernsteuerungs-API, optischer Bewegungserkennung und integrierter J.A.R.V.I.S. Sprachunterstützung.
+
+Categories:
+  - System
+  - Connectivity
+License: MIT
+WebSite: https://github.com/Daddelgreis74/Smarthome-Kiosk
+SourceCode: https://github.com/Daddelgreis74/Smarthome-Kiosk
+IssueTracker: https://github.com/Daddelgreis74/Smarthome-Kiosk/issues
+Changelog: https://github.com/Daddelgreis74/Smarthome-Kiosk/releases
+Donate: https://github.com/sponsors/Daddelgreis74
+
+RepoType: git
+Repo: https://github.com/Daddelgreis74/Smarthome-Kiosk.git

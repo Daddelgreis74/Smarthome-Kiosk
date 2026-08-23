@@ -1,0 +1,1 @@
+Smart Home Kiosk & Wallpanel mit Neo Aurora Design, REST-API & Bewegungserkennung.

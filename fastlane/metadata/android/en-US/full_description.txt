@@ -1,0 +1,11 @@
+Neo Kiosk turns your Android tablet or wall-mounted device into a futuristic, fully featured smart home terminal.
+
+🌟 KEY FEATURES:
+• Fullscreen Kiosk Mode: Locks down the device to prevent accidental app exits and hides system navigation bars.
+• Built-in Setup Wizard: 5-step onboarding guide for permissions, passwords, dashboard URL, and display behavior.
+• Neo Aurora Theme: Futuristic glassmorphism aesthetics with vibrant Cyan, Purple, and Dark Glass styling.
+• Front-Camera Motion Detection: Uses the front camera to detect approaching people and wake up the screen instantly.
+• Local REST API & Web Remote Control: Built-in HTTP server and web dashboard for controlling volume, Text-to-Speech (TTS), screen status, and system operations.
+• J.A.R.V.I.S. Voice Assistant Integration: Native Web-Polyfills for speech recognition (STT) and speech synthesis (TTS).
+• mDNS / Zero-Config: Automatically discoverable across the local home network.
+• Bilingual: Full support for both German and English.
