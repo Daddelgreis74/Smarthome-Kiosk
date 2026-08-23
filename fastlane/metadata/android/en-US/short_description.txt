@@ -1,1 +1,1 @@
-Smart Home Kiosk & Wallpanel with Neo Aurora Design, REST API & Motion Detection.
+Smart Home Kiosk & Wallpanel with Neo Aurora Theme & REST API
