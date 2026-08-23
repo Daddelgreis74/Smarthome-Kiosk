@@ -38,6 +38,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import com.example.smarthomekiosk.ui.setup.SetupWizardDialog
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -82,7 +83,7 @@ fun MainScreenContent(
     var showUpdateDialog by remember { mutableStateOf<AppUpdater.UpdateInfo?>(null) }
     var downloadProgress by remember { mutableStateOf<Float?>(null) }
     var isCheckingForUpdates by remember { mutableStateOf(false) }
-    var showSetupDialog by remember { mutableStateOf(settings.httpPassword.isEmpty()) }
+    var showSetupDialog by remember { mutableStateOf(settings.httpPassword.isEmpty() || settings.dashboardUrl.isEmpty()) }
     var currentAppVersion by remember {
         mutableStateOf(
             try {
@@ -395,6 +396,10 @@ fun MainScreenContent(
                             Toast.makeText(context, "Kiosk ist auf dem neuesten Stand (v$currentAppVersion)!", Toast.LENGTH_SHORT).show()
                         }
                     }
+                },
+                onStartSetupWizard = {
+                    showSettings = false
+                    showSetupDialog = true
                 }
             )
         }
@@ -482,98 +487,17 @@ fun MainScreenContent(
             }
         }
 
-        // 3. Setup Password Dialog (First launch / mandatory setup)
+        // 3. Setup Wizard Dialog (First launch / on-demand setup)
         if (showSetupDialog) {
-            Dialog(
-                onDismissRequest = {},
-                properties = DialogProperties(
-                    dismissOnBackPress = false,
-                    dismissOnClickOutside = false
-                )
-            ) {
-                Surface(
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.surface,
-                    modifier = Modifier.width(360.dp).padding(16.dp)
-                ) {
-                    var newHttpPassword by remember { mutableStateOf("") }
-                    var newSettingsPin by remember { mutableStateOf("1234") }
-                    var errorText by remember { mutableStateOf<String?>(null) }
-
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "Ersteinrichtung",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                        Text(
-                            text = "Bitte richte aus Sicherheitsgründen ein Passwort für die Remote-Fernsteuerung und eine PIN für die lokalen Einstellungen ein.",
-                            fontSize = 13.sp,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(bottom = 16.dp)
-                        )
-
-                        OutlinedTextField(
-                            value = newHttpPassword,
-                            onValueChange = { newHttpPassword = it },
-                            label = { Text("Remote-Admin Passwort") },
-                            placeholder = { Text("z.B. MeinSicheresPasswort") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        OutlinedTextField(
-                            value = newSettingsPin,
-                            onValueChange = { 
-                                if (it.all { char -> char.isDigit() } && it.length <= 8) {
-                                    newSettingsPin = it
-                                }
-                            },
-                            label = { Text("Einstellungen-PIN (Tablet)") },
-                            placeholder = { Text("Standard: 1234") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        if (errorText != null) {
-                            Text(
-                                text = errorText!!,
-                                color = MaterialTheme.colorScheme.error,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(top = 8.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        Button(
-                            onClick = {
-                                if (newHttpPassword.trim().length < 4) {
-                                    errorText = "Das Passwort muss mindestens 4 Zeichen lang sein."
-                                } else if (newSettingsPin.trim().isEmpty()) {
-                                    errorText = "Die PIN darf nicht leer sein."
-                                } else {
-                                    settings.httpPassword = newHttpPassword.trim()
-                                    settings.settingsPassword = newSettingsPin.trim()
-                                    showSetupDialog = false
-                                    // Start HTTP server by restarting service
-                                    (context as? MainActivity)?.restartKioskService()
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Einrichten und starten")
-                        }
-                    }
+            SetupWizardDialog(
+                settings = settings,
+                onComplete = {
+                    showSetupDialog = false
+                    currentUrl = settings.dashboardUrl
+                    webViewRef?.loadUrl(currentUrl)
+                    (context as? MainActivity)?.restartKioskService()
                 }
-            }
+            )
         }
     }
 }
@@ -587,7 +511,8 @@ fun SettingsDialog(
     onReload: () -> Unit,
     currentVersion: String,
     isCheckingForUpdates: Boolean,
-    onCheckForUpdates: () -> Unit
+    onCheckForUpdates: () -> Unit,
+    onStartSetupWizard: () -> Unit
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
@@ -907,6 +832,18 @@ fun SettingsDialog(
                         }
                         Switch(checked = ignoreSslErrors, onCheckedChange = { ignoreSslErrors = it })
                     }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
+                    // 5. Setup Wizard
+                    Text("Einrichtungs-Assistent", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(vertical = 8.dp))
+                    OutlinedButton(
+                        onClick = onStartSetupWizard,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Einrichtungs-Assistent erneut ausführen")
+                    }
+
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
