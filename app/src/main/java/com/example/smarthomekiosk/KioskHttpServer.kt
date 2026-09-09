@@ -25,7 +25,6 @@ class KioskHttpServer(
     interface KioskCommandListener {
         fun onScreenOn()
         fun onScreenOff()
-        fun onSpeak(text: String)
         fun onSetVolume(volume: Int)
         fun getDeviceInfoJson(): String
         fun onReloadWebView()
@@ -208,19 +207,6 @@ class KioskHttpServer(
                 path == "/api/screen/off" && method == "POST" -> {
                     listener.onScreenOff()
                     sendResponse(output, 200, "OK", "{\"success\":true}")
-                }
-                path == "/api/tts" && method == "POST" -> {
-                    val text = try {
-                        JSONObject(body.toString()).getString("text")
-                    } catch (e: Exception) {
-                        queryParams["text"] ?: ""
-                    }
-                    if (text.isNotEmpty()) {
-                        listener.onSpeak(text)
-                        sendResponse(output, 200, "OK", "{\"success\":true}")
-                    } else {
-                        sendResponse(output, 400, "Bad Request", "{\"error\":\"Missing 'text' parameter\"}")
-                    }
                 }
                 path == "/api/volume" && method == "POST" -> {
                     val vol = try {

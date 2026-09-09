@@ -71,6 +71,10 @@ import com.example.smarthomekiosk.MainActivity
 import com.example.smarthomekiosk.i18n.AppLanguage
 import com.example.smarthomekiosk.i18n.Strings
 import com.example.smarthomekiosk.ui.setup.SetupWizardDialog
+import com.example.smarthomekiosk.theme.*
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.border
 
 @Composable
 fun MainScreenContent(
@@ -232,64 +236,353 @@ fun MainScreenContent(
             )
         }
 
-        // Password Prompt Dialog
+        // Password Prompt Dialog (Neo Aurora High-Contrast PIN UI)
         if (showPasswordPrompt) {
             var passwordInput by remember { mutableStateOf("") }
             var isError by remember { mutableStateOf(false) }
+            val focusRequester = remember { FocusRequester() }
 
-            AlertDialog(
+            LaunchedEffect(Unit) {
+                try {
+                    focusRequester.requestFocus()
+                } catch (e: Exception) {}
+            }
+
+            Dialog(
                 onDismissRequest = { showPasswordPrompt = false },
-                title = { Text(Strings.pinPromptTitle(effectiveLang)) },
-                text = {
-                    Column {
-                        Text(Strings.pinPromptDesc(effectiveLang))
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = passwordInput,
-                            onValueChange = {
-                                passwordInput = it
-                                isError = false
-                            },
-                            visualTransformation = PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.NumberPassword,
-                                imeAction = ImeAction.Done
+                properties = DialogProperties(
+                    dismissOnBackPress = true,
+                    dismissOnClickOutside = true,
+                    usePlatformDefaultWidth = false
+                )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.75f))
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .widthIn(max = 440.dp)
+                            .border(
+                                2.dp,
+                                if (isError) AuroraError else AuroraCyan.copy(alpha = 0.8f),
+                                RoundedCornerShape(24.dp)
                             ),
-                            keyboardActions = KeyboardActions(onDone = {
-                                if (passwordInput == settings.settingsPassword) {
-                                    showPasswordPrompt = false
-                                    showSettings = true
-                                } else {
-                                    isError = true
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(containerColor = AuroraCardBg)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(28.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            // Glowing Icon Header
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(
+                                        if (isError) AuroraError.copy(alpha = 0.15f)
+                                        else AuroraCyan.copy(alpha = 0.15f)
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (isError) AuroraError.copy(alpha = 0.5f)
+                                        else AuroraCyan.copy(alpha = 0.4f),
+                                        RoundedCornerShape(16.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (isError) Icons.Default.LockOpen else Icons.Default.Lock,
+                                    contentDescription = null,
+                                    tint = if (isError) AuroraError else AuroraCyan,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Text(
+                                text = Strings.pinPromptTitle(effectiveLang),
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AuroraTextPrimary
+                            )
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Text(
+                                text = Strings.pinPromptDesc(effectiveLang),
+                                fontSize = 13.sp,
+                                color = AuroraTextMuted,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                lineHeight = 18.sp
+                            )
+
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            // High-contrast, unmistakably highlighted PIN Slots
+                            val pinLength = settings.settingsPassword.length.coerceAtLeast(4)
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(Color(0xFF0B1120))
+                                    .border(
+                                        2.dp,
+                                        if (isError) AuroraError else AuroraCyan.copy(alpha = 0.5f),
+                                        RoundedCornerShape(20.dp)
+                                    )
+                                    .padding(horizontal = 16.dp, vertical = 18.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isError) AuroraError.copy(alpha = 0.15f) else AuroraCyan.copy(alpha = 0.15f))
+                                        .padding(horizontal = 12.dp, vertical = 5.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Pin,
+                                        contentDescription = null,
+                                        tint = if (isError) AuroraError else AuroraCyan,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (effectiveLang == "de") "PIN-EINGABE" else "PIN ENTRY",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (isError) AuroraError else AuroraCyan,
+                                        letterSpacing = 1.5.sp
+                                    )
                                 }
-                            }),
-                            isError = isError,
-                            placeholder = { Text(Strings.pinPlaceholder(effectiveLang)) },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        if (isError) {
-                            Text(Strings.pinWrong(effectiveLang), color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // Visual PIN Digit Slots
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    for (i in 0 until pinLength) {
+                                        val isFilled = i < passwordInput.length
+                                        val isActive = i == passwordInput.length && !isError
+                                        
+                                        Box(
+                                            modifier = Modifier
+                                                .size(48.dp)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(
+                                                    when {
+                                                        isError -> AuroraError.copy(alpha = 0.15f)
+                                                        isFilled -> AuroraCyan.copy(alpha = 0.12f)
+                                                        isActive -> Color(0xFF1E293B)
+                                                        else -> Color(0xFF0F172A)
+                                                    }
+                                                )
+                                                .border(
+                                                    width = if (isActive || isFilled || isError) 2.dp else 1.dp,
+                                                    color = when {
+                                                        isError -> AuroraError
+                                                        isActive -> AuroraCyan
+                                                        isFilled -> AuroraCyan.copy(alpha = 0.8f)
+                                                        else -> Color(0xFF334155)
+                                                    },
+                                                    shape = RoundedCornerShape(12.dp)
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (isFilled) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(16.dp)
+                                                        .clip(androidx.compose.foundation.shape.CircleShape)
+                                                        .background(if (isError) AuroraError else AuroraCyan)
+                                                )
+                                            } else if (isActive) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .width(2.dp)
+                                                        .height(18.dp)
+                                                        .background(AuroraCyan)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Hidden OutlinedTextField for physical keyboards
+                                OutlinedTextField(
+                                    value = passwordInput,
+                                    onValueChange = { input ->
+                                        val filtered = input.filter { it.isDigit() }
+                                        if (filtered.length <= pinLength) {
+                                            passwordInput = filtered
+                                            isError = false
+                                            if (passwordInput == settings.settingsPassword) {
+                                                showPasswordPrompt = false
+                                                showSettings = true
+                                            } else if (passwordInput.length == pinLength) {
+                                                isError = true
+                                            }
+                                        }
+                                    },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.NumberPassword,
+                                        imeAction = ImeAction.Done
+                                    ),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Color.Transparent,
+                                        unfocusedBorderColor = Color.Transparent,
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        cursorColor = Color.Transparent
+                                    ),
+                                    modifier = Modifier
+                                        .size(1.dp)
+                                        .focusRequester(focusRequester)
+                                )
+                            }
+
+                            if (isError) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.Error,
+                                        contentDescription = null,
+                                        tint = AuroraError,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = Strings.pinWrong(effectiveLang),
+                                        color = AuroraError,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Tactile On-Screen Number Keypad
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                val keys = listOf(
+                                    listOf("1", "2", "3"),
+                                    listOf("4", "5", "6"),
+                                    listOf("7", "8", "9"),
+                                    listOf("C", "0", "⌫")
+                                )
+
+                                for (row in keys) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        for (key in row) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .height(48.dp)
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .background(
+                                                        when (key) {
+                                                            "C" -> AuroraError.copy(alpha = 0.12f)
+                                                            "⌫" -> Color(0xFF1E293B)
+                                                            else -> Color(0xFF1E293B)
+                                                        }
+                                                    )
+                                                    .border(
+                                                        1.dp,
+                                                        when (key) {
+                                                            "C" -> AuroraError.copy(alpha = 0.35f)
+                                                            else -> Color(0xFF334155)
+                                                        },
+                                                        RoundedCornerShape(12.dp)
+                                                    )
+                                                    .clickable {
+                                                        when (key) {
+                                                            "C" -> {
+                                                                passwordInput = ""
+                                                                isError = false
+                                                            }
+                                                            "⌫" -> {
+                                                                if (passwordInput.isNotEmpty()) {
+                                                                    passwordInput = passwordInput.dropLast(1)
+                                                                    isError = false
+                                                                }
+                                                            }
+                                                            else -> {
+                                                                if (passwordInput.length < pinLength) {
+                                                                    val nextInput = passwordInput + key
+                                                                    passwordInput = nextInput
+                                                                    isError = false
+                                                                    if (nextInput == settings.settingsPassword) {
+                                                                        showPasswordPrompt = false
+                                                                        showSettings = true
+                                                                    } else if (nextInput.length == pinLength) {
+                                                                        isError = true
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = key,
+                                                    fontSize = if (key == "⌫" || key == "C") 16.sp else 20.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = when (key) {
+                                                        "C" -> AuroraError
+                                                        "⌫" -> AuroraCyan
+                                                        else -> AuroraTextPrimary
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            // Dismiss / Cancel Button
+                            OutlinedButton(
+                                onClick = { showPasswordPrompt = false },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                border = ButtonDefaults.outlinedButtonBorder.copy(
+                                    brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                                        listOf(AuroraCardBorder, AuroraCardBorder)
+                                    )
+                                ),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = AuroraTextMuted)
+                            ) {
+                                Text(Strings.cancel(effectiveLang), fontWeight = FontWeight.SemiBold)
+                            }
                         }
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        if (passwordInput == settings.settingsPassword) {
-                            showPasswordPrompt = false
-                            showSettings = true
-                        } else {
-                            isError = true
-                        }
-                    }) {
-                        Text(Strings.confirm(effectiveLang))
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showPasswordPrompt = false }) {
-                        Text(Strings.cancel(effectiveLang))
                     }
                 }
-            )
+            }
         }
 
         // Settings Dialog

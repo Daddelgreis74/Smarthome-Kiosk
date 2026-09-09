@@ -3,7 +3,7 @@ let apiPassword = "";
 let pollingTimer = null;
 let currentLang = localStorage.getItem("kiosk_web_lang") || "de";
 
-// Dictionary
+// Dictionary (DE / EN)
 const translations = {
     de: {
         login_title: "Kiosk Login",
@@ -11,32 +11,39 @@ const translations = {
         login_btn: "Anmelden",
         status_connected: "Verbunden",
         logout_btn: "Abmelden",
-        card_status_title: "Systemstatus",
-        stat_screen: "Display:",
-        stat_battery: "Batterie:",
-        stat_ram: "Freier Speicher:",
-        stat_model: "Tablet-Modell:",
-        card_display_title: "Display Steuerung",
-        card_display_desc: "Schalte den Bildschirm des Tablets ein oder aus.",
-        btn_screen_on: "Bildschirm Ein",
-        btn_screen_off: "Bildschirm Aus",
+        
+        // Status Hero
+        stat_screen: "Display Status",
+        stat_battery: "Batterie",
+        stat_ram: "Freier RAM",
+        stat_model: "Tablet Modell",
+        
+        // Card 1: Control
+        card_display_title: "Display & Steuerung",
+        card_display_desc: "Direkte Steuerung von Bildschirm und Browseranzeige.",
+        label_screen_power: "Bildschirm Ein / Aus:",
+        btn_screen_on_text: "Display Ein",
+        btn_screen_off_text: "Display Aus",
+        label_webview_action: "Kiosk WebView:",
+        btn_reload_text: "WebView neu laden",
+        
+        // Card 2: Audio
         card_volume_title: "Lautstärke",
-        card_volume_desc: "Passe die Musik- und Medienlautstärke an.",
-        btn_mute: "Stummschalten",
-        card_tts_title: "Sprachausgabe (TTS)",
-        card_tts_desc: "Lass das Tablet eine Nachricht vorlesen.",
-        tts_placeholder: "Gib hier einen Text ein...",
-        btn_speak: "Nachricht vorlesen",
-        card_ops_title: "System Aktionen",
-        card_ops_desc: "Steuere das Kiosk-System und die Web-Anzeige.",
-        btn_reload_webview: "WebView neu laden",
+        card_volume_desc: "Passe die Medienlautstärke des Tablets an.",
+        btn_mute: "Stumm",
+        
+        // Card 3: Settings
         card_settings_title: "Kiosk Einstellungen",
-        card_settings_desc: "Konfiguriere die Dashboard-URL und die SSL-Sicherheit des Tablets.",
-        label_dash_url: "Dashboard URL:",
-        label_ignore_ssl: "SSL-Fehler ignorieren",
-        label_pin_protection: "PIN-Schutz für Einstellungen aktivieren",
-        btn_save_settings: "Einstellungen speichern",
-        toast_tts_empty: "Bitte gib einen Text ein, der vorgelesen werden soll.",
+        card_settings_desc: "Konfiguriere URL und Sicherheit des Tablets.",
+        label_dash_url: "Dashboard Server URL:",
+        helper_dash_url: "Die Webadresse deines Dashboards im lokalen Netzwerk.",
+        label_ignore_ssl: "Selbstsignierte SSL-Fehler ignorieren",
+        desc_ignore_ssl: "Erlaubt HTTPS mit lokalen oder selbstausgestellten Zertifikaten.",
+        label_pin_protection: "PIN-Schutz für Einstellungen",
+        desc_pin_protection: "Sichert das Einstellungsmenü auf dem Tablet mit PIN ab.",
+        btn_save_settings: "💾 Einstellungen speichern",
+        
+        // Feedback Toasts
         toast_settings_saved: "Einstellungen erfolgreich gespeichert!",
         toast_cmd_success: "Befehl erfolgreich ausgeführt.",
         toast_cmd_error: "Fehler bei der Ausführung des Befehls.",
@@ -48,32 +55,39 @@ const translations = {
         login_btn: "Sign In",
         status_connected: "Connected",
         logout_btn: "Sign Out",
-        card_status_title: "System Status",
-        stat_screen: "Screen:",
-        stat_battery: "Battery:",
-        stat_ram: "Free Memory:",
-        stat_model: "Tablet Model:",
-        card_display_title: "Display Control",
-        card_display_desc: "Turn the tablet screen on or off.",
-        btn_screen_on: "Screen On",
-        btn_screen_off: "Screen Off",
+        
+        // Status Hero
+        stat_screen: "Display Status",
+        stat_battery: "Battery",
+        stat_ram: "Free RAM",
+        stat_model: "Tablet Model",
+        
+        // Card 1: Control
+        card_display_title: "Display & Controls",
+        card_display_desc: "Direct controls for screen power and browser view.",
+        label_screen_power: "Display Power:",
+        btn_screen_on_text: "Screen On",
+        btn_screen_off_text: "Screen Off",
+        label_webview_action: "Kiosk WebView:",
+        btn_reload_text: "Reload WebView",
+        
+        // Card 2: Audio
         card_volume_title: "Volume",
-        card_volume_desc: "Adjust music and media playback volume.",
+        card_volume_desc: "Adjust media playback volume of the tablet.",
         btn_mute: "Mute",
-        card_tts_title: "Voice Output (TTS)",
-        card_tts_desc: "Let the tablet read a voice message.",
-        tts_placeholder: "Enter a message to speak...",
-        btn_speak: "Speak Message",
-        card_ops_title: "System Actions",
-        card_ops_desc: "Control the kiosk system and web view.",
-        btn_reload_webview: "Reload WebView",
+        
+        // Card 3: Settings
         card_settings_title: "Kiosk Settings",
-        card_settings_desc: "Configure the dashboard URL and SSL security on the tablet.",
-        label_dash_url: "Dashboard URL:",
-        label_ignore_ssl: "Ignore SSL Errors",
-        label_pin_protection: "Enable PIN Protection for Settings",
-        btn_save_settings: "Save Settings",
-        toast_tts_empty: "Please enter a message to read aloud.",
+        card_settings_desc: "Configure dashboard URL and security options.",
+        label_dash_url: "Dashboard Server URL:",
+        helper_dash_url: "The web address of your dashboard on the local network.",
+        label_ignore_ssl: "Ignore Self-Signed SSL Errors",
+        desc_ignore_ssl: "Allows HTTPS with local or self-signed certificates.",
+        label_pin_protection: "PIN Protection for Settings",
+        desc_pin_protection: "Locks the settings menu on the tablet with a PIN.",
+        btn_save_settings: "💾 Save Settings",
+        
+        // Feedback Toasts
         toast_settings_saved: "Settings successfully saved!",
         toast_cmd_success: "Command executed successfully.",
         toast_cmd_error: "Error executing command.",
@@ -90,9 +104,6 @@ function applyLanguage(lang) {
         const key = el.getAttribute("data-i18n");
         if (dict[key]) el.textContent = dict[key];
     });
-
-    const ttsText = document.getElementById("tts-text");
-    if (ttsText) ttsText.placeholder = dict.tts_placeholder;
 
     const loginLangBtn = document.getElementById("login-lang-btn");
     if (loginLangBtn) loginLangBtn.textContent = lang === "de" ? "🇬🇧 English" : "🇩🇪 Deutsch";
@@ -121,6 +132,7 @@ const statBattery = document.getElementById("stat-battery");
 const batteryLevelBar = document.getElementById("battery-level-bar");
 const statRam = document.getElementById("stat-ram");
 const statModel = document.getElementById("stat-model");
+const headerModel = document.getElementById("header-model");
 const chargingIcon = document.getElementById("charging-icon");
 
 // Controls Elements
@@ -129,12 +141,13 @@ const screenOffBtn = document.getElementById("screen-off-btn");
 const volumeSlider = document.getElementById("volume-slider");
 const volumeVal = document.getElementById("volume-val");
 const volumeMuteBtn = document.getElementById("volume-mute-btn");
-const ttsText = document.getElementById("tts-text");
-const ttsSendBtn = document.getElementById("tts-send-btn");
+const vol25Btn = document.getElementById("vol-25-btn");
+const vol50Btn = document.getElementById("vol-50-btn");
+const vol100Btn = document.getElementById("vol-100-btn");
 const reloadWebviewBtn = document.getElementById("reload-webview-btn");
 const toast = document.getElementById("toast");
 
-// Settings elements
+// Settings Elements
 const kioskUrlInput = document.getElementById("kiosk-url-input");
 const kioskSslCheckbox = document.getElementById("kiosk-ssl-checkbox");
 const kioskPinCheckbox = document.getElementById("kiosk-pin-checkbox");
@@ -172,36 +185,36 @@ volumeSlider.addEventListener("input", (e) => {
 volumeSlider.addEventListener("change", (e) => {
     sendCommand("/api/volume", { volume: parseInt(e.target.value) });
 });
+
 volumeMuteBtn.addEventListener("click", () => {
     volumeSlider.value = 0;
     volumeVal.textContent = "0%";
     sendCommand("/api/volume", { volume: 0 });
 });
 
-ttsSendBtn.addEventListener("click", () => {
-    const text = ttsText.value.trim();
-    const dict = translations[currentLang] || translations.de;
-    if (!text) {
-        showToast(dict.toast_tts_empty, "error");
-        return;
-    }
-    sendCommand("/api/tts", { text: text }).then(success => {
-        if (success) ttsText.value = "";
+if (vol25Btn) {
+    vol25Btn.addEventListener("click", () => {
+        volumeSlider.value = 25;
+        volumeVal.textContent = "25%";
+        sendCommand("/api/volume", { volume: 25 });
     });
-});
+}
 
-// Preset tags click
-document.querySelectorAll(".preset-tag").forEach(tag => {
-    tag.addEventListener("click", () => {
-        const phrase = currentLang === "en" ? 
-            (tag.getAttribute("data-phrase-en") || tag.getAttribute("data-phrase-de")) : 
-            tag.getAttribute("data-phrase-de");
-        ttsText.value = phrase;
-        sendCommand("/api/tts", { text: phrase }).then(success => {
-            if (success) ttsText.value = "";
-        });
+if (vol50Btn) {
+    vol50Btn.addEventListener("click", () => {
+        volumeSlider.value = 50;
+        volumeVal.textContent = "50%";
+        sendCommand("/api/volume", { volume: 50 });
     });
-});
+}
+
+if (vol100Btn) {
+    vol100Btn.addEventListener("click", () => {
+        volumeSlider.value = 100;
+        volumeVal.textContent = "100%";
+        sendCommand("/api/volume", { volume: 100 });
+    });
+}
 
 reloadWebviewBtn.addEventListener("click", () => sendCommand("/api/webview/reload"));
 
@@ -362,7 +375,7 @@ function updateUI(data) {
         statScreen.textContent = currentLang === "de" ? "AN" : "ON";
         statScreen.className = "badge badge-success";
     } else {
-        statScreen.textContent = currentLang === "de" ? "AUS" : "OFF";
+        statScreen.textContent = currentLang === "de" ? "STANDBY" : "STANDBY";
         statScreen.className = "badge badge-danger";
     }
 
@@ -393,6 +406,7 @@ function updateUI(data) {
     // Device Model
     if (data.model) {
         statModel.textContent = data.model;
+        if (headerModel) headerModel.textContent = data.model;
     }
 
     // Volume Slider

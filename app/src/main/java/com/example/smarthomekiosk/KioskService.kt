@@ -9,7 +9,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.media.AudioManager
 import android.os.*
-import android.speech.tts.TextToSpeech
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import org.json.JSONObject
@@ -33,7 +32,6 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
     private var motionDetector: MotionDetector? = null
     
     private var wakeLock: PowerManager.WakeLock? = null
-    private var tts: TextToSpeech? = null
     private val handler = Handler(Looper.getMainLooper())
     private var isScreenOffState = false
 
@@ -60,7 +58,6 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
         startForeground(NOTIFICATION_ID, createNotification())
         
         acquireCpuWakeLock()
-        initTts()
         registerReceiver(serviceReceiver, IntentFilter(ACTION_RESET_IDLE))
 
         startNetworkServices()
@@ -91,9 +88,6 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
         stopNetworkServices()
         stopMotionDetection()
         releaseCpuWakeLock()
-        
-        tts?.stop()
-        tts?.shutdown()
         
         Log.i("KioskService", "Service destroyed")
     }
@@ -166,16 +160,6 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
         wakeLock = null
     }
 
-    private fun initTts() {
-        tts = TextToSpeech(this) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale.getDefault()
-            } else {
-                Log.e("KioskService", "TTS Initialization failed")
-            }
-        }
-    }
-
     // KioskCommandListener implementation
     override fun onScreenOn() {
         Log.i("KioskService", "Screen On triggered")
@@ -225,10 +209,6 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
         } else {
             sendBroadcast(Intent(ACTION_SLEEP))
         }
-    }
-
-    override fun onSpeak(text: String) {
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "kiosk_tts_id")
     }
 
     override fun onSetVolume(volume: Int) {
