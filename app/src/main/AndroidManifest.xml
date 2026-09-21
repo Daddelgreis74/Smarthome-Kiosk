@@ -9,6 +9,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
@@ -17,6 +18,7 @@
     <uses-feature android:name="android.hardware.camera.front" android:required="false" />
 
     <application
+        android:name=".KioskApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -36,10 +38,15 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".CrashActivity"
+            android:exported="false"
+            android:process=":crash" />
+
         <!-- Hintergrund-Service für HTTP-Server und Kamera-Verarbeitung -->
         <service
             android:name=".KioskService"
-            android:foregroundServiceType="specialUse|camera"
+            android:foregroundServiceType="specialUse|dataSync|camera"
             android:exported="false">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"

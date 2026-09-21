@@ -57,18 +57,27 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
 
     override fun onCreate() {
         super.onCreate()
-        settings = KioskSettings(this)
-        
-        startForegroundCompat()
-        
-        acquireCpuWakeLock()
-        registerReceiver(serviceReceiver, IntentFilter(ACTION_RESET_IDLE))
+        try {
+            settings = KioskSettings(this)
+            
+            startForegroundCompat()
+            
+            acquireCpuWakeLock()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(serviceReceiver, IntentFilter(ACTION_RESET_IDLE), RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                registerReceiver(serviceReceiver, IntentFilter(ACTION_RESET_IDLE))
+            }
 
-        startNetworkServices()
-        startMotionDetection()
-        resetIdleTimer()
-        
-        Log.i("KioskService", "Service created")
+            startNetworkServices()
+            startMotionDetection()
+            resetIdleTimer()
+            
+            Log.i("KioskService", "Service created successfully")
+        } catch (t: Throwable) {
+            Log.e("KioskService", "Error during KioskService onCreate", t)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -76,22 +85,34 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
         val command = intent?.getStringExtra("command")
         if (command == "RESTART_SERVICES") {
             Log.i("KioskService", "Restarting background services with new settings")
-            stopNetworkServices()
-            stopMotionDetection()
-            startNetworkServices()
-            startMotionDetection()
-            resetIdleTimer()
+            try {
+                stopNetworkServices()
+                stopMotionDetection()
+                startNetworkServices()
+                startMotionDetection()
+                resetIdleTimer()
+            } catch (e: Exception) {
+                Log.e("KioskService", "Error restarting services", e)
+            }
         }
         return START_STICKY
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        handler.removeCallbacks(idleRunnable)
-        unregisterReceiver(serviceReceiver)
-        stopNetworkServices()
-        stopMotionDetection()
-        releaseCpuWakeLock()
+        try {
+            handler.removeCallbacks(idleRunnable)
+            unregisterReceiver(serviceReceiver)
+        } catch (e: Exception) {
+            Log.w("KioskService", "Error unregistering receiver", e)
+        }
+        try {
+            stopNetworkServices()
+            stopMotionDetection()
+            releaseCpuWakeLock()
+        } catch (e: Exception) {
+            Log.w("KioskService", "Error stopping services", e)
+        }
         
         Log.i("KioskService", "Service destroyed")
     }
@@ -126,9 +147,9 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 val hasCameraPerm = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
                 val type = if (hasCameraPerm && settings.motionDetectionEnabled) {
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
                 } else {
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
                 }
                 ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -193,9 +214,13 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
     }
 
     private fun acquireCpuWakeLock() {
-        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "KioskApp::CpuWakeLock").apply {
-            acquire()
+        try {
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "KioskApp::CpuWakeLock").apply {
+                acquire()
+            }
+        } catch (e: Exception) {
+            Log.e("KioskService", "Failed to acquire CpuWakeLock", e)
         }
     }
 

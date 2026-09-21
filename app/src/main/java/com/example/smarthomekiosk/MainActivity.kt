@@ -44,30 +44,31 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        settings = KioskSettings(this)
-
         enableEdgeToEdge()
-        setupKioskFlags()
-
-        // Register receiver for screen state broadcasts
-        val filter = IntentFilter().apply {
-            addAction(KioskService.ACTION_WAKE_UP)
-            addAction(KioskService.ACTION_SLEEP)
-        }
+        super.onCreate(savedInstanceState)
         
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(screenReceiver, filter, RECEIVER_NOT_EXPORTED)
-        } else {
-            @Suppress("UnspecifiedRegisterReceiverFlag")
-            registerReceiver(screenReceiver, filter)
+        try {
+            settings = KioskSettings(this)
+            setupKioskFlags()
+
+            // Register receiver for screen state broadcasts
+            val filter = IntentFilter().apply {
+                addAction(KioskService.ACTION_WAKE_UP)
+                addAction(KioskService.ACTION_SLEEP)
+            }
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(screenReceiver, filter, RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                registerReceiver(screenReceiver, filter)
+            }
+
+            // Check & request camera permission if motion detection is enabled
+            checkPermissions()
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Error during early initialization", e)
         }
-
-        // Start Kiosk Background Service
-        startKioskService()
-
-        // Check & request camera permission if motion detection is enabled
-        checkPermissions()
 
         setContent {
             SmarthomeKioskTheme {
@@ -79,8 +80,12 @@ class MainActivity : ComponentActivity() {
                         settings = settings,
                         isDimmed = isDimmedState.value,
                         onWakeUp = {
-                            sendBroadcast(Intent(KioskService.ACTION_RESET_IDLE))
-                            sendBroadcast(Intent(KioskService.ACTION_WAKE_UP))
+                            try {
+                                sendBroadcast(Intent(KioskService.ACTION_RESET_IDLE))
+                                sendBroadcast(Intent(KioskService.ACTION_WAKE_UP))
+                            } catch (e: Exception) {
+                                android.util.Log.e("MainActivity", "Error sending wake broadcast", e)
+                            }
                         }
                     )
                 }
@@ -88,10 +93,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        // Start Kiosk Background Service once Activity is foreground/visible
+        startKioskService()
+    }
+
     override fun onResume() {
         super.onResume()
         applyImmersiveMode()
-        sendBroadcast(Intent(KioskService.ACTION_RESET_IDLE))
+        try {
+            sendBroadcast(Intent(KioskService.ACTION_RESET_IDLE))
+        } catch (e: Exception) {
+            android.util.Log.w("MainActivity", "Error sending idle reset", e)
+        }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -103,7 +118,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        unregisterReceiver(screenReceiver)
+        try {
+            unregisterReceiver(screenReceiver)
+        } catch (e: Exception) {
+            android.util.Log.w("MainActivity", "Error unregistering screenReceiver", e)
+        }
     }
 
     private fun startKioskService() {
@@ -135,50 +154,65 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun setupKioskFlags() {
-        // Keep screen on
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        
-        // Prevent screen locks & show on lock screen (for older/various APIs)
-        @Suppress("DEPRECATION")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(true)
-            setTurnScreenOn(true)
-        } else {
-            window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+        try {
+            // Keep screen on
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            
+            // Prevent screen locks & show on lock screen
+            @Suppress("DEPRECATION")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                setShowWhenLocked(true)
+                setTurnScreenOn(true)
+            } else {
+                window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("MainActivity", "Error setting kiosk window flags", e)
         }
     }
 
     private fun applyImmersiveMode() {
-        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
-        windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
+        try {
+            val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+            windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
+        } catch (e: Exception) {
+            android.util.Log.w("MainActivity", "Error applying immersive mode", e)
+        }
     }
 
     private fun setDimmed(dimmed: Boolean) {
-        isDimmedState.value = dimmed
-        val layoutParams = window.attributes
-        // Setting brightness to 0.01f dims the screen completely
-        layoutParams.screenBrightness = if (dimmed) 0.01f else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
-        window.attributes = layoutParams
+        try {
+            isDimmedState.value = dimmed
+            val layoutParams = window.attributes
+            layoutParams.screenBrightness = if (dimmed) 0.01f else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+            window.attributes = layoutParams
+        } catch (e: Exception) {
+            android.util.Log.w("MainActivity", "Error updating brightness", e)
+        }
     }
 
     private fun checkPermissions() {
-        val permissionsNeeded = mutableListOf<String>()
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            permissionsNeeded.add(Manifest.permission.CAMERA)
-        }
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            permissionsNeeded.add(Manifest.permission.RECORD_AUDIO)
-        }
-        if (permissionsNeeded.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, permissionsNeeded.toTypedArray(), 100)
+        try {
+            val permissionsNeeded = mutableListOf<String>()
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                permissionsNeeded.add(Manifest.permission.CAMERA)
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                permissionsNeeded.add(Manifest.permission.RECORD_AUDIO)
+            }
+            if (permissionsNeeded.isNotEmpty()) {
+                ActivityCompat.requestPermissions(this, permissionsNeeded.toTypedArray(), 100)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Error requesting permissions", e)
         }
     }
 
     // Back button lockdown
     @Suppress("DEPRECATION")
     override fun onBackPressed() {
-        if (settings.kioskEnabled) {
+        if (::settings.isInitialized && settings.kioskEnabled) {
             // Do nothing, block back button in kiosk mode
         } else {
             super.onBackPressed()
