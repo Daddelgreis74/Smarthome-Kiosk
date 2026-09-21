@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
@@ -38,8 +39,12 @@
         <!-- Hintergrund-Service für HTTP-Server und Kamera-Verarbeitung -->
         <service
             android:name=".KioskService"
-            android:foregroundServiceType="camera"
-            android:exported="false" />
+            android:foregroundServiceType="specialUse|camera"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Smart home kiosk background web server and local hardware management" />
+        </service>
 
         <!-- Autostart-Receiver nach Systemboot -->
         <receiver

@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
         }
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(screenReceiver, filter, RECEIVER_EXPORTED)
+            registerReceiver(screenReceiver, filter, RECEIVER_NOT_EXPORTED)
         } else {
             @Suppress("UnspecifiedRegisterReceiverFlag")
             registerReceiver(screenReceiver, filter)
@@ -107,22 +107,30 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startKioskService() {
-        val serviceIntent = Intent(this, KioskService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent)
-        } else {
-            startService(serviceIntent)
+        try {
+            val serviceIntent = Intent(this, KioskService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Error starting KioskService", e)
         }
     }
 
     fun restartKioskService() {
-        val serviceIntent = Intent(this, KioskService::class.java).apply {
-            putExtra("command", "RESTART_SERVICES")
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent)
-        } else {
-            startService(serviceIntent)
+        try {
+            val serviceIntent = Intent(this, KioskService::class.java).apply {
+                putExtra("command", "RESTART_SERVICES")
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Error restarting KioskService", e)
         }
     }
 

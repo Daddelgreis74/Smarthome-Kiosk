@@ -6,13 +6,13 @@ plugins {
 
 android {
     namespace = "com.example.smarthomekiosk"
-    compileSdk = 36
+    compileSdk = 35
     defaultConfig {
         applicationId = "com.example.smarthomekiosk"
         minSdk = 24
-        targetSdk = 36
-        versionCode = 6
-        versionName = "2.6"
+        targetSdk = 35
+        versionCode = 7
+        versionName = "2.7"
     }
 
     signingConfigs {

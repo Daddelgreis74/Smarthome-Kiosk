@@ -1,5 +1,6 @@
 package com.example.smarthomekiosk
 
+import android.Manifest
 import android.app.*
 import android.app.admin.DevicePolicyManager
 import android.content.BroadcastReceiver
@@ -7,10 +8,14 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.media.AudioManager
 import android.os.*
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 import org.json.JSONObject
 import java.util.Locale
 
@@ -54,8 +59,7 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
         super.onCreate()
         settings = KioskSettings(this)
         
-        createNotificationChannel()
-        startForeground(NOTIFICATION_ID, createNotification())
+        startForegroundCompat()
         
         acquireCpuWakeLock()
         registerReceiver(serviceReceiver, IntentFilter(ACTION_RESET_IDLE))
@@ -114,20 +118,62 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
         nsdHelper = null
     }
 
+    private fun startForegroundCompat() {
+        createNotificationChannel()
+        val notification = createNotification()
+        
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                val hasCameraPerm = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                val type = if (hasCameraPerm && settings.motionDetectionEnabled) {
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+                } else {
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                }
+                ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val hasCameraPerm = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                val type = if (hasCameraPerm && settings.motionDetectionEnabled) {
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+                } else {
+                    0
+                }
+                ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Exception) {
+            Log.e("KioskService", "Failed to start foreground service with type, falling back", e)
+            try {
+                startForeground(NOTIFICATION_ID, notification)
+            } catch (fallbackEx: Exception) {
+                Log.e("KioskService", "Emergency fallback startForeground failed", fallbackEx)
+            }
+        }
+    }
+
     private fun startMotionDetection() {
         if (settings.motionDetectionEnabled) {
-            motionDetector = MotionDetector(this) {
-                // On Motion callback
-                handler.post {
-                    if (isScreenOffState) {
-                        onScreenOn()
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                Log.w("KioskService", "Motion detection enabled but CAMERA permission not granted")
+                return
+            }
+            try {
+                motionDetector = MotionDetector(this) {
+                    // On Motion callback
+                    handler.post {
+                        if (isScreenOffState) {
+                            onScreenOn()
+                        }
+                        resetIdleTimer()
                     }
-                    resetIdleTimer()
+                }.apply {
+                    sensitivity = settings.motionDetectionSensitivity
+                    isDebugEnabled = settings.motionDetectionDebug
+                    start()
                 }
-            }.apply {
-                sensitivity = settings.motionDetectionSensitivity
-                isDebugEnabled = settings.motionDetectionDebug
-                start()
+            } catch (e: Exception) {
+                Log.e("KioskService", "Error initializing MotionDetector", e)
             }
         }
     }
