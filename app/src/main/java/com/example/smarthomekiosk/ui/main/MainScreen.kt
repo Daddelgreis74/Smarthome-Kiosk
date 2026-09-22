@@ -7,6 +7,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.http.SslError
 import android.net.Uri
@@ -99,9 +100,14 @@ fun MainScreenContent(
     var currentAppVersion by remember {
         mutableStateOf(
             try {
-                context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "2.5"
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    context.packageManager.getPackageInfo(context.packageName, PackageManager.PackageInfoFlags.of(0)).versionName ?: "3.0"
+                } else {
+                    @Suppress("DEPRECATION")
+                    context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "3.0"
+                }
             } catch (e: Exception) {
-                "2.5"
+                "3.0"
             }
         )
     }
@@ -1225,7 +1231,6 @@ private fun setupWebView(webView: WebView, context: Context, settings: KioskSett
     webView.settings.apply {
         javaScriptEnabled = true
         domStorageEnabled = true
-        databaseEnabled = true
         allowFileAccess = true
         allowContentAccess = true
         mediaPlaybackRequiresUserGesture = false

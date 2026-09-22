@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.view.MotionEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.addCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
@@ -65,7 +66,18 @@ class MainActivity : ComponentActivity() {
                 registerReceiver(screenReceiver, filter)
             }
 
-            // Check & request camera permission if motion detection is enabled
+            // Android 13-16 Predictive Back Callback
+            onBackPressedDispatcher.addCallback(this) {
+                if (::settings.isInitialized && settings.kioskEnabled) {
+                    // Do nothing, block back button in kiosk mode
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                    isEnabled = true
+                }
+            }
+
+            // Check & request camera, microphone and notification permissions
             checkPermissions()
         } catch (e: Exception) {
             android.util.Log.e("MainActivity", "Error during early initialization", e)
@@ -225,21 +237,16 @@ class MainActivity : ComponentActivity() {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                 permissionsNeeded.add(Manifest.permission.RECORD_AUDIO)
             }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    permissionsNeeded.add(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
             if (permissionsNeeded.isNotEmpty()) {
                 ActivityCompat.requestPermissions(this, permissionsNeeded.toTypedArray(), 100)
             }
         } catch (e: Exception) {
             android.util.Log.e("MainActivity", "Error requesting permissions", e)
-        }
-    }
-
-    // Back button lockdown
-    @Suppress("DEPRECATION")
-    override fun onBackPressed() {
-        if (::settings.isInitialized && settings.kioskEnabled) {
-            // Do nothing, block back button in kiosk mode
-        } else {
-            super.onBackPressed()
         }
     }
 }

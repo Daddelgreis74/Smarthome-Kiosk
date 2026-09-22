@@ -5,6 +5,8 @@ import android.content.Context
 import android.graphics.ImageFormat
 import android.graphics.PixelFormat
 import android.hardware.camera2.*
+import android.hardware.camera2.params.OutputConfiguration
+import android.hardware.camera2.params.SessionConfiguration
 import android.media.ImageReader
 import android.os.Build
 import android.os.Handler
@@ -15,6 +17,7 @@ import android.view.Surface
 import android.view.TextureView
 import android.view.WindowManager
 import java.nio.ByteBuffer
+import java.util.concurrent.Executor
 
 class MotionDetector(
     private val context: Context,
@@ -169,7 +172,7 @@ class MotionDetector(
 
     private fun createSession(device: CameraDevice, targets: List<Surface>) {
         try {
-            device.createCaptureSession(targets, object : CameraCaptureSession.StateCallback() {
+            val stateCallback = object : CameraCaptureSession.StateCallback() {
                 override fun onConfigured(session: CameraCaptureSession) {
                     captureSession = session
                     startRepeatingRequest()
@@ -178,7 +181,22 @@ class MotionDetector(
                 override fun onConfigureFailed(session: CameraCaptureSession) {
                     Log.e("MotionDetector", "Failed to configure capture session")
                 }
-            }, backgroundHandler)
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val outputConfigs = targets.map { OutputConfiguration(it) }
+                val executor = Executor { command -> backgroundHandler?.post(command) }
+                val sessionConfig = SessionConfiguration(
+                    SessionConfiguration.SESSION_REGULAR,
+                    outputConfigs,
+                    executor,
+                    stateCallback
+                )
+                device.createCaptureSession(sessionConfig)
+            } else {
+                @Suppress("DEPRECATION")
+                device.createCaptureSession(targets, stateCallback, backgroundHandler)
+            }
         } catch (e: Exception) {
             Log.e("MotionDetector", "Error creating session", e)
         }

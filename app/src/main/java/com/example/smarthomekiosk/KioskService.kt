@@ -319,9 +319,14 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
         val freeMemoryBytes = mi.availMem
 
         val appVersionName = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "2.1"
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0)).versionName ?: "3.0"
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(packageName, 0).versionName ?: "3.0"
+            }
         } catch (e: Exception) {
-            "2.1"
+            "3.0"
         }
 
         val json = JSONObject().apply {
