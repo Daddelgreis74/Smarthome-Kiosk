@@ -807,7 +807,7 @@ private fun StepKioskBehavior(
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             val isFake = offMethod == "fake"
             Card(
@@ -817,23 +817,37 @@ private fun StepKioskBehavior(
                     .clickable { onOffMethodChange("fake") },
                 colors = CardDefaults.cardColors(containerColor = if (isFake) AuroraCyan.copy(alpha = 0.1f) else Color(0xFF0F172A))
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Text(Strings.methodFakeTitle(lang), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = AuroraTextPrimary)
-                    Text(Strings.methodFakeDesc(lang), fontSize = 11.sp, color = AuroraTextMuted)
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Text(Strings.methodFakeTitle(lang), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = AuroraTextPrimary)
+                    Text(Strings.methodFakeDesc(lang), fontSize = 10.sp, color = AuroraTextMuted)
                 }
             }
 
-            val isNative = offMethod == "native"
+            val isSystem = offMethod == "system"
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .border(1.dp, if (isSystem) AuroraCyan else AuroraCardBorder, RoundedCornerShape(12.dp))
+                    .clickable { onOffMethodChange("system") },
+                colors = CardDefaults.cardColors(containerColor = if (isSystem) AuroraCyan.copy(alpha = 0.1f) else Color(0xFF0F172A))
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Text(Strings.methodSystemTitle(lang), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = AuroraTextPrimary)
+                    Text(Strings.methodSystemDesc(lang), fontSize = 10.sp, color = AuroraTextMuted)
+                }
+            }
+
+            val isNative = offMethod == "admin" || offMethod == "native"
             Card(
                 modifier = Modifier
                     .weight(1f)
                     .border(1.dp, if (isNative) AuroraCyan else AuroraCardBorder, RoundedCornerShape(12.dp))
-                    .clickable { onOffMethodChange("native") },
+                    .clickable { onOffMethodChange("admin") },
                 colors = CardDefaults.cardColors(containerColor = if (isNative) AuroraCyan.copy(alpha = 0.1f) else Color(0xFF0F172A))
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Text(Strings.methodNativeTitle(lang), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = AuroraTextPrimary)
-                    Text(Strings.methodNativeDesc(lang), fontSize = 11.sp, color = AuroraTextMuted)
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Text(Strings.methodNativeTitle(lang), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = AuroraTextPrimary)
+                    Text(Strings.methodNativeDesc(lang), fontSize = 10.sp, color = AuroraTextMuted)
                 }
             }
         }

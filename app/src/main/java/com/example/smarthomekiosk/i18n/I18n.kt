@@ -99,8 +99,16 @@ object Strings {
     fun screenOffMethodLabel(lang: String) = if (lang == "de") "Ausschalt-Methode" else "Screen Off Method"
     fun methodFakeTitle(lang: String) = if (lang == "de") "Fake / Schwarzbild (Empfohlen)" else "Fake / Black Screen (Recommended)"
     fun methodFakeDesc(lang: String) = if (lang == "de") "Sofortiges Aufwachen bei Berührung ohne System-Lock." else "Instant wake-up on touch without system lock."
-    fun methodNativeTitle(lang: String) = if (lang == "de") "Native Bildschirmsperre" else "Native Screen Lock"
+    fun methodSystemTitle(lang: String) = if (lang == "de") "Android-System (Schoner & Standby)" else "Android System (Saver & Standby)"
+    fun methodSystemDesc(lang: String) = if (lang == "de") "Nutzt den normalen Android-Bildschirmschoner / Standby (keine Admin-Rechte nötig)." else "Uses Android's native screensaver / standby (no admin rights required)."
+    fun methodNativeTitle(lang: String) = if (lang == "de") "Native Bildschirmsperre (Admin)" else "Native Screen Lock (Admin)"
     fun methodNativeDesc(lang: String) = if (lang == "de") "Schaltet das Display via Device-Admin komplett aus." else "Turns the display off completely via Device-Admin."
+    fun restrictedSettingsTitle(lang: String) = if (lang == "de") "⚠️ Android Schutz (Eingeschränkte Einstellungen)" else "⚠️ Android Security (Restricted Settings)"
+    fun restrictedSettingsDesc(lang: String) = if (lang == "de") 
+        "Da die App als APK installiert wurde, sperrt Android Admin-Rechte zunächst ab Werk.\n\n1. Tippe auf '1. App-Info öffnen'\n2. Tippe oben rechts auf die 3 Punkte (⋮)\n3. Wähle 'Eingeschränkte Einstellungen zulassen'\n4. Kehre zurück und tippe auf '2. Admin aktivieren'"
+        else "Because this app was sideloaded as an APK, Android restricts device admin permissions by default.\n\n1. Tap '1. Open App Info'\n2. Tap the 3 dots (⋮) in the top-right corner\n3. Select 'Allow restricted settings'\n4. Return here and tap '2. Activate Admin'"
+    fun openAppInfoBtn(lang: String) = if (lang == "de") "1. App-Info öffnen" else "1. Open App Info"
+    fun activateAdminBtn(lang: String) = if (lang == "de") "2. Admin aktivieren" else "2. Activate Admin"
     fun motionDetectionToggle(lang: String) = if (lang == "de") "Kamera-Bewegungserkennung" else "Camera Motion Detection"
     fun motionDetectionDesc(lang: String) = if (lang == "de") 
         "Weckt das Display automatisch bei Bewegung vor dem Tablet auf."

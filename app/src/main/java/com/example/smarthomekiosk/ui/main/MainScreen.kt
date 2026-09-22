@@ -594,6 +594,7 @@ fun MainScreenContent(
                     showSettings = false
                     currentUrl = settings.dashboardUrl
                     webViewRef?.loadUrl(currentUrl)
+                    (context as? MainActivity)?.setupKioskFlags()
                     (context as? MainActivity)?.restartKioskService()
                 },
                 onReload = {
@@ -942,17 +943,35 @@ fun SettingsDialog(
                             selected = screenOffMethod == "fake",
                             onClick = { screenOffMethod = "fake" }
                         )
-                        Text(Strings.methodFakeTitle(effectiveLang))
+                        Column(modifier = Modifier.padding(start = 4.dp)) {
+                            Text(Strings.methodFakeTitle(effectiveLang), fontSize = 14.sp)
+                            Text(Strings.methodFakeDesc(effectiveLang), fontSize = 11.sp, color = Color.Gray)
+                        }
                     }
+                    Spacer(modifier = Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(
-                            selected = screenOffMethod == "admin",
+                            selected = screenOffMethod == "system",
+                            onClick = { screenOffMethod = "system" }
+                        )
+                        Column(modifier = Modifier.padding(start = 4.dp)) {
+                            Text(Strings.methodSystemTitle(effectiveLang), fontSize = 14.sp)
+                            Text(Strings.methodSystemDesc(effectiveLang), fontSize = 11.sp, color = Color.Gray)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(
+                            selected = screenOffMethod == "admin" || screenOffMethod == "native",
                             onClick = { screenOffMethod = "admin" }
                         )
-                        Text(Strings.methodNativeTitle(effectiveLang))
+                        Column(modifier = Modifier.padding(start = 4.dp)) {
+                            Text(Strings.methodNativeTitle(effectiveLang), fontSize = 14.sp)
+                            Text(Strings.methodNativeDesc(effectiveLang), fontSize = 11.sp, color = Color.Gray)
+                        }
                     }
 
-                    if (screenOffMethod == "admin" && !isAdminActive) {
+                    if ((screenOffMethod == "admin" || screenOffMethod == "native") && !isAdminActive) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Card(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
@@ -962,17 +981,67 @@ fun SettingsDialog(
                                 Text(Strings.deviceAdminSection(effectiveLang), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
                                 Text(Strings.deviceAdminDesc(effectiveLang), fontSize = 12.sp, color = MaterialTheme.colorScheme.onErrorContainer)
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Button(
-                                    onClick = {
-                                        val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
-                                            putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
-                                            putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Erforderlich zum automatischen Ausschalten des Displays.")
-                                        }
-                                        context.startActivity(intent)
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                                 ) {
-                                    Text(Strings.deviceAdminGrantBtn(effectiveLang))
+                                    Column(modifier = Modifier.padding(8.dp)) {
+                                        Text(
+                                            text = Strings.restrictedSettingsTitle(effectiveLang),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = Strings.restrictedSettingsDesc(effectiveLang),
+                                            fontSize = 11.sp,
+                                            lineHeight = 15.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            try {
+                                                val intent = Intent(AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                                    data = Uri.fromParts("package", context.packageName, null)
+                                                }
+                                                context.startActivity(intent)
+                                            } catch (e: Exception) {
+                                                Toast.makeText(context, "Konnte App-Info nicht öffnen: " + e.localizedMessage, Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(Strings.openAppInfoBtn(effectiveLang), fontSize = 11.sp)
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            try {
+                                                val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                                                    putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
+                                                    putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Erforderlich zum automatischen Ausschalten des Displays.")
+                                                }
+                                                context.startActivity(intent)
+                                            } catch (e: Exception) {
+                                                Toast.makeText(context, "Fehler beim Öffnen: " + e.localizedMessage, Toast.LENGTH_LONG).show()
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(Strings.activateAdminBtn(effectiveLang), fontSize = 11.sp)
+                                    }
                                 }
                             }
                         }

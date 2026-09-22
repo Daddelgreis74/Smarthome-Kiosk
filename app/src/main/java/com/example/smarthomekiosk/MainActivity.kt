@@ -8,6 +8,7 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.view.MotionEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -80,9 +81,12 @@ class MainActivity : ComponentActivity() {
                         settings = settings,
                         isDimmed = isDimmedState.value,
                         onWakeUp = {
+                            setDimmed(false)
                             try {
-                                sendBroadcast(Intent(KioskService.ACTION_RESET_IDLE))
-                                sendBroadcast(Intent(KioskService.ACTION_WAKE_UP))
+                                val resetIntent = Intent(KioskService.ACTION_RESET_IDLE).apply { setPackage(packageName) }
+                                sendBroadcast(resetIntent)
+                                val wakeIntent = Intent(KioskService.ACTION_WAKE_UP).apply { setPackage(packageName) }
+                                sendBroadcast(wakeIntent)
                             } catch (e: Exception) {
                                 android.util.Log.e("MainActivity", "Error sending wake broadcast", e)
                             }
@@ -93,6 +97,19 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        if (isDimmedState.value) {
+            setDimmed(false)
+        }
+        try {
+            val intent = Intent(KioskService.ACTION_RESET_IDLE).apply { setPackage(packageName) }
+            sendBroadcast(intent)
+        } catch (e: Exception) {
+            // Ignored
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
     override fun onStart() {
         super.onStart()
         // Start Kiosk Background Service once Activity is foreground/visible
@@ -101,9 +118,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        setupKioskFlags()
         applyImmersiveMode()
         try {
-            sendBroadcast(Intent(KioskService.ACTION_RESET_IDLE))
+            val intent = Intent(KioskService.ACTION_RESET_IDLE).apply { setPackage(packageName) }
+            sendBroadcast(intent)
         } catch (e: Exception) {
             android.util.Log.w("MainActivity", "Error sending idle reset", e)
         }
@@ -153,10 +172,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun setupKioskFlags() {
+    fun setupKioskFlags() {
         try {
-            // Keep screen on
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            if (::settings.isInitialized && settings.screenOffMethod == "system") {
+                // Allow Android OS to manage display sleep and daydream screensaver
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            } else {
+                // Keep screen active for Kiosk / Fake Standby / DeviceAdmin
+                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
             
             // Prevent screen locks & show on lock screen
             @Suppress("DEPRECATION")

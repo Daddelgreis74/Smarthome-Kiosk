@@ -40,7 +40,10 @@ class KioskSettings(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_KIOSK_ENABLED, value).apply()
 
     var screenOffMethod: String
-        get() = prefs.getString(KEY_SCREEN_OFF_METHOD, "fake") ?: "fake"
+        get() {
+            val m = prefs.getString(KEY_SCREEN_OFF_METHOD, "fake") ?: "fake"
+            return if (m == "native") "admin" else m
+        }
         set(value) = prefs.edit().putString(KEY_SCREEN_OFF_METHOD, value).apply()
 
     var screenTimeoutMinutes: Int

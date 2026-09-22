@@ -237,22 +237,31 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
         isScreenOffState = false
         
         // 1. Send broadcast to wake up MainActivity (dismisses fake standby)
-        sendBroadcast(Intent(ACTION_WAKE_UP))
+        val wakeIntent = Intent(ACTION_WAKE_UP).apply { setPackage(packageName) }
+        sendBroadcast(wakeIntent)
         
         // 2. Hardware Wake: Acquire temporary screen wake lock to light up display (if locked by system)
-        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        @Suppress("DEPRECATION")
-        val screenLock = pm.newWakeLock(
-            PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
-            "KioskApp::ScreenWakeLock"
-        )
-        screenLock.acquire(1000)
+        try {
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            @Suppress("DEPRECATION")
+            val screenLock = pm.newWakeLock(
+                PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                "KioskApp::ScreenWakeLock"
+            )
+            screenLock.acquire(1000)
+        } catch (e: Exception) {
+            Log.e("KioskService", "Error acquiring screen wake lock", e)
+        }
         
         // 3. Make sure MainActivity is brought to front
-        val intent = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        try {
+            val intent = Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("KioskService", "Error starting MainActivity from service", e)
         }
-        startActivity(intent)
         
         resetIdleTimer()
     }
@@ -263,7 +272,7 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
         handler.removeCallbacks(idleRunnable)
 
         val method = settings.screenOffMethod
-        if (method == "admin") {
+        if (method == "admin" || method == "native") {
             val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
             val adminComponent = ComponentName(this, KioskDeviceAdminReceiver::class.java)
             if (dpm.isAdminActive(adminComponent)) {
@@ -271,14 +280,19 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
                     dpm.lockNow()
                 } catch (e: Exception) {
                     Log.e("KioskService", "DeviceAdmin Lock failed, falling back to Fake Standby", e)
-                    sendBroadcast(Intent(ACTION_SLEEP))
+                    val sleepIntent = Intent(ACTION_SLEEP).apply { setPackage(packageName) }
+                    sendBroadcast(sleepIntent)
                 }
             } else {
                 Log.w("KioskService", "DeviceAdmin is not active, falling back to Fake Standby")
-                sendBroadcast(Intent(ACTION_SLEEP))
+                val sleepIntent = Intent(ACTION_SLEEP).apply { setPackage(packageName) }
+                sendBroadcast(sleepIntent)
             }
+        } else if (method == "system") {
+            Log.i("KioskService", "Screen off handled natively by Android system timeout")
         } else {
-            sendBroadcast(Intent(ACTION_SLEEP))
+            val sleepIntent = Intent(ACTION_SLEEP).apply { setPackage(packageName) }
+            sendBroadcast(sleepIntent)
         }
     }
 
@@ -327,7 +341,8 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
 
     override fun onReloadWebView() {
         Log.i("KioskService", "WebView Reload triggered")
-        sendBroadcast(Intent(ACTION_RELOAD_WEBVIEW))
+        val reloadIntent = Intent(ACTION_RELOAD_WEBVIEW).apply { setPackage(packageName) }
+        sendBroadcast(reloadIntent)
     }
 
     override fun onUpdateSettings(dashboardUrl: String?, ignoreSslErrors: Boolean?, pinProtectionEnabled: Boolean?) {
@@ -341,7 +356,8 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
         if (pinProtectionEnabled != null) {
             settings.pinProtectionEnabled = pinProtectionEnabled
         }
-        sendBroadcast(Intent(ACTION_RELOAD_WEBVIEW))
+        val reloadIntent = Intent(ACTION_RELOAD_WEBVIEW).apply { setPackage(packageName) }
+        sendBroadcast(reloadIntent)
     }
 
     // Notification Channel for Foreground Service
