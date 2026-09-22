@@ -40,7 +40,7 @@ jobs:
       shell: bash
 
     - name: Build with Gradle
-      run: ./gradlew assembleDebug assembleRelease --no-daemon
+      run: ./gradlew assembleRelease assembleDebug --no-daemon --stacktrace
 
     - name: Rename APKs
       run: |
