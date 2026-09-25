@@ -294,7 +294,10 @@ fun MainScreenContent(
                                         Key.Seven, Key.NumPad7 -> '7'
                                         Key.Eight, Key.NumPad8 -> '8'
                                         Key.Nine, Key.NumPad9 -> '9'
-                                        else -> if (keyEvent.utf16Code != 0 && keyEvent.utf16Code.toChar().isDigit()) keyEvent.utf16Code.toChar() else null
+                                        else -> {
+                                            val unicode = keyEvent.nativeKeyEvent.unicodeChar
+                                            if (unicode in '0'.code..'9'.code) unicode.toChar() else null
+                                        }
                                     }
                                     if (digit != null) {
                                         if (passwordInput.length < pinLength) {
