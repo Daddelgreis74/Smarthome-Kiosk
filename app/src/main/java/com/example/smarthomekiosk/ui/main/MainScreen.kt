@@ -76,6 +76,9 @@ import com.example.smarthomekiosk.theme.*
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.input.key.*
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 
 @Composable
 fun MainScreenContent(
@@ -247,9 +250,11 @@ fun MainScreenContent(
             var passwordInput by remember { mutableStateOf("") }
             var isError by remember { mutableStateOf(false) }
             val focusRequester = remember { FocusRequester() }
+            val keyboardController = LocalSoftwareKeyboardController.current
 
             LaunchedEffect(Unit) {
                 try {
+                    keyboardController?.hide()
                     focusRequester.requestFocus()
                 } catch (e: Exception) {}
             }
@@ -273,6 +278,50 @@ fun MainScreenContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .widthIn(max = 440.dp)
+                            .focusRequester(focusRequester)
+                            .focusable()
+                            .onKeyEvent { keyEvent ->
+                                if (keyEvent.type == KeyEventType.KeyDown) {
+                                    val pinLength = settings.settingsPassword.length.coerceAtLeast(4)
+                                    val digit = when (keyEvent.key) {
+                                        Key.Zero, Key.NumPad0 -> '0'
+                                        Key.One, Key.NumPad1 -> '1'
+                                        Key.Two, Key.NumPad2 -> '2'
+                                        Key.Three, Key.NumPad3 -> '3'
+                                        Key.Four, Key.NumPad4 -> '4'
+                                        Key.Five, Key.NumPad5 -> '5'
+                                        Key.Six, Key.NumPad6 -> '6'
+                                        Key.Seven, Key.NumPad7 -> '7'
+                                        Key.Eight, Key.NumPad8 -> '8'
+                                        Key.Nine, Key.NumPad9 -> '9'
+                                        else -> if (keyEvent.utf16Code != 0 && keyEvent.utf16Code.toChar().isDigit()) keyEvent.utf16Code.toChar() else null
+                                    }
+                                    if (digit != null) {
+                                        if (passwordInput.length < pinLength) {
+                                            val nextInput = passwordInput + digit
+                                            passwordInput = nextInput
+                                            isError = false
+                                            if (nextInput == settings.settingsPassword) {
+                                                showPasswordPrompt = false
+                                                showSettings = true
+                                            } else if (nextInput.length == pinLength) {
+                                                isError = true
+                                            }
+                                        }
+                                        return@onKeyEvent true
+                                    } else if (keyEvent.key == Key.Backspace) {
+                                        if (passwordInput.isNotEmpty()) {
+                                            passwordInput = passwordInput.dropLast(1)
+                                            isError = false
+                                        }
+                                        return@onKeyEvent true
+                                    } else if (keyEvent.key == Key.Escape) {
+                                        showPasswordPrompt = false
+                                        return@onKeyEvent true
+                                    }
+                                }
+                                false
+                            }
                             .border(
                                 2.dp,
                                 if (isError) AuroraError else AuroraCyan.copy(alpha = 0.8f),
@@ -426,39 +475,6 @@ fun MainScreenContent(
                                         }
                                     }
                                 }
-
-                                // Hidden OutlinedTextField for physical keyboards
-                                OutlinedTextField(
-                                    value = passwordInput,
-                                    onValueChange = { input ->
-                                        val filtered = input.filter { it.isDigit() }
-                                        if (filtered.length <= pinLength) {
-                                            passwordInput = filtered
-                                            isError = false
-                                            if (passwordInput == settings.settingsPassword) {
-                                                showPasswordPrompt = false
-                                                showSettings = true
-                                            } else if (passwordInput.length == pinLength) {
-                                                isError = true
-                                            }
-                                        }
-                                    },
-                                    singleLine = true,
-                                    keyboardOptions = KeyboardOptions(
-                                        keyboardType = KeyboardType.NumberPassword,
-                                        imeAction = ImeAction.Done
-                                    ),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = Color.Transparent,
-                                        unfocusedBorderColor = Color.Transparent,
-                                        focusedContainerColor = Color.Transparent,
-                                        unfocusedContainerColor = Color.Transparent,
-                                        cursorColor = Color.Transparent
-                                    ),
-                                    modifier = Modifier
-                                        .size(1.dp)
-                                        .focusRequester(focusRequester)
-                                )
                             }
 
                             if (isError) {
