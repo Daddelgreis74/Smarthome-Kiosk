@@ -110,9 +110,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
-        if (ev != null) {
-            PenBatteryManager.recordStylusMotionEvent(ev)
-        }
         if (isDimmedState.value) {
             setDimmed(false)
         }
@@ -123,13 +120,6 @@ class MainActivity : ComponentActivity() {
             // Ignored
         }
         return super.dispatchTouchEvent(ev)
-    }
-
-    override fun dispatchGenericMotionEvent(ev: MotionEvent?): Boolean {
-        if (ev != null) {
-            PenBatteryManager.recordStylusMotionEvent(ev)
-        }
-        return super.dispatchGenericMotionEvent(ev)
     }
 
     override fun onStart() {
@@ -250,11 +240,6 @@ class MainActivity : ComponentActivity() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                     permissionsNeeded.add(Manifest.permission.POST_NOTIFICATIONS)
-                }
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                    permissionsNeeded.add(Manifest.permission.BLUETOOTH_CONNECT)
                 }
             }
             if (permissionsNeeded.isNotEmpty()) {

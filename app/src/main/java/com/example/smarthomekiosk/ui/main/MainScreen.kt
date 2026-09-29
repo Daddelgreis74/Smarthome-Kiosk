@@ -69,7 +69,6 @@ import com.example.smarthomekiosk.KioskDeviceAdminReceiver
 import com.example.smarthomekiosk.KioskService
 import com.example.smarthomekiosk.KioskSettings
 import com.example.smarthomekiosk.MainActivity
-import com.example.smarthomekiosk.PenBatteryManager
 import com.example.smarthomekiosk.i18n.AppLanguage
 import com.example.smarthomekiosk.i18n.Strings
 import com.example.smarthomekiosk.ui.setup.SetupWizardDialog
@@ -159,22 +158,6 @@ fun MainScreenContent(
         }
     }
 
-    val penBatteryManager = remember { PenBatteryManager(context) }
-
-    DisposableEffect(penBatteryManager) {
-        penBatteryManager.onBatteryUpdated = { level, name ->
-            val escapedName = name.replace("'", "\\'")
-            val script = "window.dispatchEvent(new CustomEvent('pen-battery-update', { detail: { level: $level, name: '$escapedName' } }));"
-            webViewRef?.post {
-                webViewRef?.evaluateJavascript(script, null)
-            }
-        }
-        penBatteryManager.startMonitoring()
-        onDispose {
-            penBatteryManager.stopMonitoring()
-        }
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -197,7 +180,7 @@ fun MainScreenContent(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
-                        setupWebView(this, ctx, settings, penBatteryManager)
+                        setupWebView(this, ctx, settings)
                         loadUrl(currentUrl)
                         webViewRef = this
                     }
@@ -1263,12 +1246,7 @@ fun SettingsDialog(
     }
 }
 
-private fun setupWebView(
-    webView: WebView,
-    context: Context,
-    settings: KioskSettings,
-    penBatteryManager: PenBatteryManager
-) {
+private fun setupWebView(webView: WebView, context: Context, settings: KioskSettings) {
     webView.settings.apply {
         javaScriptEnabled = true
         domStorageEnabled = true
@@ -1297,14 +1275,6 @@ private fun setupWebView(
             super.onPageFinished(view, url)
             injectSpeechPolyfill(view)
             injectAudioPolyfill(view)
-
-            // Initialen Pen-Akkustand an das Dashboard übermitteln
-            val level = penBatteryManager.getBatteryLevel()
-            val escapedName = penBatteryManager.getPenName().replace("'", "\\'")
-            view?.evaluateJavascript(
-                "window.dispatchEvent(new CustomEvent('pen-battery-update', { detail: { level: $level, name: '$escapedName' } }));",
-                null
-            )
         }
     }
 
@@ -1331,11 +1301,6 @@ private fun setupWebView(
     webView.addJavascriptInterface(
         AndroidAudioPlayerInterface(context) { webView },
         "AndroidAudioPlayer"
-    )
-
-    webView.addJavascriptInterface(
-        AndroidPenInterface(penBatteryManager),
-        "AndroidPen"
     )
 }
 
@@ -1793,23 +1758,3 @@ class AndroidSpeechInterface(
         }
     }
 }
-
-class AndroidPenInterface(
-    private val penBatteryManager: PenBatteryManager
-) {
-    @JavascriptInterface
-    fun getBatteryLevel(): Int {
-        return penBatteryManager.getBatteryLevel()
-    }
-
-    @JavascriptInterface
-    fun getPenName(): String {
-        return penBatteryManager.getPenName()
-    }
-
-    @JavascriptInterface
-    fun isConnected(): Boolean {
-        return penBatteryManager.isConnected()
-    }
-}
-
