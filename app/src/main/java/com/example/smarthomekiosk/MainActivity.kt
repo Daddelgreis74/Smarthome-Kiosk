@@ -242,6 +242,11 @@ class MainActivity : ComponentActivity() {
                     permissionsNeeded.add(Manifest.permission.POST_NOTIFICATIONS)
                 }
             }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                    permissionsNeeded.add(Manifest.permission.BLUETOOTH_CONNECT)
+                }
+            }
             if (permissionsNeeded.isNotEmpty()) {
                 ActivityCompat.requestPermissions(this, permissionsNeeded.toTypedArray(), 100)
             }
