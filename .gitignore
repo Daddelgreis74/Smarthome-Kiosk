@@ -16,3 +16,6 @@ local.properties
 artifacts/
 app/keystore.jks
 
+
+*.apk
+
