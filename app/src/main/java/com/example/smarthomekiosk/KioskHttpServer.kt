@@ -27,6 +27,7 @@ class KioskHttpServer(
         fun onScreenOff()
         fun onSetVolume(volume: Int)
         fun getDeviceInfoJson(): String
+        fun getPenDebugJson(): String
         fun onReloadWebView()
         fun onUpdateSettings(dashboardUrl: String?, ignoreSslErrors: Boolean?, pinProtectionEnabled: Boolean?)
     }
@@ -224,6 +225,10 @@ class KioskHttpServer(
                 path == "/api/device/info" && method == "GET" -> {
                     val info = listener.getDeviceInfoJson()
                     sendResponse(output, 200, "OK", info)
+                }
+                path == "/api/pen/debug" && method == "GET" -> {
+                    val debug = listener.getPenDebugJson()
+                    sendResponse(output, 200, "OK", debug)
                 }
                 path == "/api/webview/reload" && method == "POST" -> {
                     listener.onReloadWebView()

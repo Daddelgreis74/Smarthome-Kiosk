@@ -39,6 +39,7 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
     private var wakeLock: PowerManager.WakeLock? = null
     private val handler = Handler(Looper.getMainLooper())
     private var isScreenOffState = false
+    private val penBatteryManager by lazy { PenBatteryManager(this) }
 
     // Idle timer runnable
     private val idleRunnable = Runnable {
@@ -342,6 +343,10 @@ class KioskService : Service(), KioskHttpServer.KioskCommandListener {
             put("pinProtectionEnabled", settings.pinProtectionEnabled)
         }
         return json.toString()
+    }
+
+    override fun getPenDebugJson(): String {
+        return penBatteryManager.getDebugJson()
     }
 
     override fun onReloadWebView() {
