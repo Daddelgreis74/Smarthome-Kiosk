@@ -14,15 +14,20 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.hardware.input.InputManager
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.InputDevice
+import android.view.MotionEvent
 import androidx.core.content.ContextCompat
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.File
+import java.io.InputStreamReader
 import java.util.UUID
 import kotlin.math.roundToInt
 
@@ -34,8 +39,8 @@ data class PenBatteryInfo(
 )
 
 /**
- * Erkennt und überwacht den Akkustand von Stylus / Bluetooth Pens (insb. Lenovo Tab Pen Plus / Lenovo Tap Pen).
- * Unterstützt BLE GATT (Battery Service 0x180F / 0x2A19), Android 12+ InputManager, System Settings & Broadcasts.
+ * Erkennt und überwacht den Akkustand von Stylus / Pens (insb. Lenovo Tab Pen AP400U / AP401U).
+ * Unterstützt InputManager (Android 12+), MotionEvent Live-Capture, System-Settings, Sysfs & BLE.
  */
 class PenBatteryManager(private val context: Context) {
 
@@ -45,6 +50,58 @@ class PenBatteryManager(private val context: Context) {
         val BATTERY_LEVEL_CHAR_UUID: UUID = UUID.fromString("00002a19-0000-1000-8000-00805f9b34fb")
         const val ACTION_BATTERY_LEVEL_CHANGED = "android.bluetooth.device.action.BATTERY_LEVEL_CHANGED"
         const val EXTRA_BATTERY_LEVEL = "android.bluetooth.device.extra.BATTERY_LEVEL"
+
+        @Volatile
+        var instance: PenBatteryManager? = null
+
+        @Volatile
+        var lastStylusEvent: JSONObject? = null
+        @Volatile
+        var stylusEventCount: Int = 0
+
+        fun recordStylusMotionEvent(ev: MotionEvent) {
+            try {
+                for (i in 0 until ev.pointerCount) {
+                    val toolType = ev.getToolType(i)
+                    if (toolType == MotionEvent.TOOL_TYPE_STYLUS || toolType == MotionEvent.TOOL_TYPE_ERASER) {
+                        stylusEventCount++
+                        val obj = JSONObject()
+                        obj.put("count", stylusEventCount)
+                        obj.put("action", MotionEvent.actionToString(ev.actionMasked))
+                        obj.put("toolType", toolType)
+                        obj.put("pressure", ev.getPressure(i))
+                        val dev = ev.device
+                        if (dev != null) {
+                            obj.put("deviceId", dev.id)
+                            obj.put("deviceName", dev.name)
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                try {
+                                    val bs = dev.batteryState
+                                    obj.put("batteryPresent", bs.isPresent)
+                                    val cap = bs.capacity
+                                    if (cap.isNaN()) {
+                                        obj.put("batteryCapacity", "NaN")
+                                    } else {
+                                        obj.put("batteryCapacity", cap)
+                                        if (cap in 0f..1f) {
+                                            val pct = (cap * 100f).roundToInt().coerceIn(0, 100)
+                                            instance?.updateBatteryLevel(pct, dev.name ?: "Lenovo Tab Pen", "stylus_touch_event")
+                                        }
+                                    }
+                                    obj.put("batteryStatus", bs.status)
+                                } catch (e: Exception) {
+                                    obj.put("batteryErr", e.message)
+                                }
+                            }
+                        }
+                        lastStylusEvent = obj
+                        break
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Error recording stylus motion event", e)
+            }
+        }
     }
 
     private var lastLevel: Int = -1
@@ -53,8 +110,13 @@ class PenBatteryManager(private val context: Context) {
     private var isMonitoring: Boolean = false
     private var activeGatt: BluetoothGatt? = null
 
+    private val recentBroadcasts = mutableListOf<JSONObject>()
     private val mainHandler = Handler(Looper.getMainLooper())
     var onBatteryUpdated: ((level: Int, name: String) -> Unit)? = null
+
+    init {
+        instance = this
+    }
 
     private val inputManager: InputManager? by lazy {
         context.getSystemService(Context.INPUT_SERVICE) as? InputManager
@@ -74,10 +136,38 @@ class PenBatteryManager(private val context: Context) {
         }
     }
 
-    private val bluetoothReceiver = object : BroadcastReceiver() {
+    private val stylusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent == null) return
             val action = intent.action ?: return
+
+            try {
+                val bObj = JSONObject()
+                bObj.put("action", action)
+                val extrasObj = JSONObject()
+                val bundle = intent.extras
+                if (bundle != null) {
+                    for (key in bundle.keySet()) {
+                        @Suppress("DEPRECATION")
+                        val v = bundle.get(key)
+                        extrasObj.put(key, v?.toString() ?: "null")
+                        val lower = key.lowercase()
+                        if (v is Number && (lower.contains("battery") || lower.contains("level") || lower.contains("capacity") || lower.contains("pct"))) {
+                            val num = v.toInt()
+                            if (num in 0..100 && !action.contains("android.intent.action.BATTERY_CHANGED")) {
+                                updateBatteryLevel(num, "Lenovo Tab Pen", "broadcast:$action:$key")
+                            }
+                        }
+                    }
+                }
+                bObj.put("extras", extrasObj)
+                synchronized(recentBroadcasts) {
+                    if (recentBroadcasts.size > 20) {
+                        recentBroadcasts.removeAt(0)
+                    }
+                    recentBroadcasts.add(bObj)
+                }
+            } catch (_: Exception) {}
 
             if (action == ACTION_BATTERY_LEVEL_CHANGED) {
                 val level = intent.getIntExtra(EXTRA_BATTERY_LEVEL, -1)
@@ -90,10 +180,7 @@ class PenBatteryManager(private val context: Context) {
                 val devName = device?.name ?: lastName
 
                 if (isPenName(devName) && level >= 0) {
-                    lastLevel = level
-                    lastName = devName
-                    lastSource = "broadcast"
-                    notifyUpdate(level, devName)
+                    updateBatteryLevel(level, devName, "broadcast_bt")
                     return
                 }
             }
@@ -118,15 +205,24 @@ class PenBatteryManager(private val context: Context) {
                 addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
                 addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
                 addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
+                addAction("android.hardware.input.action.STYLUS_BATTERY")
+                addAction("android.hardware.input.action.STYLUS_BATTERY_CHANGED")
+                addAction("com.lenovo.stylus.BATTERY_CHANGED")
+                addAction("com.lenovo.pen.BATTERY_CHANGED")
+                addAction("lenovo.intent.action.PEN_BATTERY")
+                addAction("lenovo.intent.action.STYLUS_BATTERY")
+                addAction("com.zui.pen.BATTERY_CHANGED")
+                addAction("com.zui.stylus.BATTERY_CHANGED")
+                addAction("com.motorola.stylus.BATTERY_CHANGED")
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                context.registerReceiver(bluetoothReceiver, filter, Context.RECEIVER_EXPORTED)
+                context.registerReceiver(stylusReceiver, filter, Context.RECEIVER_EXPORTED)
             } else {
                 @Suppress("UnspecifiedRegisterReceiverFlag")
-                context.registerReceiver(bluetoothReceiver, filter)
+                context.registerReceiver(stylusReceiver, filter)
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Fehler beim Registrieren des BluetoothReceivers", e)
+            Log.w(TAG, "Fehler beim Registrieren des StylusReceivers", e)
         }
 
         refreshBattery()
@@ -151,9 +247,9 @@ class PenBatteryManager(private val context: Context) {
         }
 
         try {
-            context.unregisterReceiver(bluetoothReceiver)
+            context.unregisterReceiver(stylusReceiver)
         } catch (e: Exception) {
-            Log.w(TAG, "Fehler beim Abmelden des BluetoothReceivers", e)
+            Log.w(TAG, "Fehler beim Abmelden des StylusReceivers", e)
         }
     }
 
@@ -168,6 +264,15 @@ class PenBatteryManager(private val context: Context) {
 
     fun isConnected(): Boolean {
         return getBatteryLevel() >= 0
+    }
+
+    fun updateBatteryLevel(level: Int, name: String, source: String) {
+        if (level in 0..100) {
+            lastLevel = level
+            lastName = name
+            lastSource = source
+            notifyUpdate(level, name)
+        }
     }
 
     fun refreshBattery() {
@@ -199,7 +304,7 @@ class PenBatteryManager(private val context: Context) {
                     if (isStylus && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                         val batteryState = device.batteryState
                         val cap = batteryState.capacity
-                        if (!cap.isNaN() && cap >= 0f) {
+                        if (batteryState.isPresent && !cap.isNaN() && cap >= 0f) {
                             val pct = (cap * 100f).roundToInt().coerceIn(0, 100)
                             val devName = device.name?.takeIf { it.isNotBlank() } ?: "Lenovo Tab Pen"
                             lastLevel = pct
@@ -222,7 +327,15 @@ class PenBatteryManager(private val context: Context) {
             return PenBatteryInfo(settingsBattery, lastName, true, lastSource)
         }
 
-        // 3. Priorität: Gekoppelte Bluetooth-Geräte
+        // 3. Priorität: Sysfs Battery Scan
+        val sysfsBattery = checkSysfsBattery()
+        if (sysfsBattery != null && sysfsBattery >= 0) {
+            lastLevel = sysfsBattery
+            lastSource = "sysfs"
+            return PenBatteryInfo(sysfsBattery, lastName, true, lastSource)
+        }
+
+        // 4. Priorität: Gekoppelte Bluetooth-Geräte
         try {
             val btManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
             val adapter = btManager?.adapter
@@ -238,7 +351,7 @@ class PenBatteryManager(private val context: Context) {
                             val cleanName = if (bName.isNotBlank()) bName else "Lenovo Tab Pen"
                             lastName = cleanName
 
-                            // A: Reflected getBatteryLevel()
+                            // Reflected getBatteryLevel()
                             val refLevel = getBluetoothDeviceBattery(bDev)
                             if (refLevel != null && refLevel >= 0) {
                                 lastLevel = refLevel
@@ -246,7 +359,7 @@ class PenBatteryManager(private val context: Context) {
                                 return PenBatteryInfo(refLevel, cleanName, true, lastSource)
                             }
 
-                            // B: BLE GATT Battery Service auslesen (asynchron via connectGatt)
+                            // BLE GATT Battery Service auslesen
                             triggerBleGattBatteryRead(bDev)
                         }
                     }
@@ -273,6 +386,33 @@ class PenBatteryManager(private val context: Context) {
             try {
                 val level = Settings.Global.getInt(context.contentResolver, key, -1)
                 if (level in 0..100) return level
+            } catch (_: Exception) {}
+            try {
+                val level = Settings.Secure.getInt(context.contentResolver, key, -1)
+                if (level in 0..100) return level
+            } catch (_: Exception) {}
+        }
+        return null
+    }
+
+    private fun checkSysfsBattery(): Int? {
+        val candidatePaths = listOf(
+            "/sys/class/input/input5/device/battery/capacity",
+            "/sys/class/input/input5/capacity",
+            "/sys/class/power_supply/stylus/capacity",
+            "/sys/class/power_supply/pen/capacity",
+            "/sys/class/power_supply/wacom_battery/capacity"
+        )
+        for (path in candidatePaths) {
+            try {
+                val f = File(path)
+                if (f.exists() && f.canRead()) {
+                    val text = f.readText().trim()
+                    val value = text.toIntOrNull()
+                    if (value != null && value in 0..100) {
+                        return value
+                    }
+                }
             } catch (_: Exception) {}
         }
         return null
@@ -333,10 +473,7 @@ class PenBatteryManager(private val context: Context) {
 
                         if (level in 0..100) {
                             Log.i(TAG, "BLE GATT Battery Level: $level% for ${gatt.device.name}")
-                            lastLevel = level
-                            lastName = gatt.device.name ?: "Lenovo Tab Pen"
-                            lastSource = "ble_gatt"
-                            notifyUpdate(level, lastName)
+                            updateBatteryLevel(level, gatt.device.name ?: "Lenovo Tab Pen", "ble_gatt")
                         }
                     }
                 }
@@ -374,6 +511,142 @@ class PenBatteryManager(private val context: Context) {
                lower.contains("lenovo tap")
     }
 
+    private fun scanSystemProps(): JSONObject {
+        val obj = JSONObject()
+        try {
+            val process = Runtime.getRuntime().exec("/system/bin/getprop")
+            val reader = BufferedReader(InputStreamReader(process.inputStream))
+            var line: String?
+            while (reader.readLine().also { line = it } != null) {
+                val l = line ?: continue
+                val lower = l.lowercase()
+                if (lower.contains("pen") || lower.contains("stylus") || lower.contains("wacom") ||
+                    lower.contains("himax") || lower.contains("ap40") || lower.contains("lenovo") ||
+                    lower.contains("touch")) {
+                    val parts = l.split("]: [")
+                    if (parts.size == 2) {
+                        val key = parts[0].trim().removePrefix("[").removeSuffix("]")
+                        val value = parts[1].trim().removePrefix("[").removeSuffix("]")
+                        obj.put(key, value)
+                    }
+                }
+            }
+            reader.close()
+            process.waitFor()
+        } catch (e: Exception) {
+            obj.put("scanError", e.message)
+        }
+        return obj
+    }
+
+    private fun scanMatchedPackages(): JSONArray {
+        val arr = JSONArray()
+        try {
+            val pm = context.packageManager
+            val packages = pm.getInstalledPackages(0)
+            for (pkg in packages) {
+                val pName = pkg.packageName.lowercase()
+                if (pName.contains("pen") || pName.contains("stylus") || pName.contains("wacom") ||
+                    (pName.contains("lenovo") && (pName.contains("service") || pName.contains("device") || pName.contains("touch") || pName.contains("smart")))) {
+                    val pObj = JSONObject()
+                    pObj.put("package", pkg.packageName)
+                    pObj.put("version", pkg.versionName ?: "")
+                    arr.put(pObj)
+                }
+            }
+        } catch (_: Exception) {}
+        return arr
+    }
+
+    private fun scanSysfs(): JSONArray {
+        val results = JSONArray()
+        val paths = listOf(
+            "/sys/class/power_supply",
+            "/sys/class/input/input5",
+            "/sys/class/input/input5/device",
+            "/sys/class/input/input4",
+            "/sys/devices/virtual/input/input5"
+        )
+        for (p in paths) {
+            val dir = File(p)
+            if (dir.exists() && dir.isDirectory) {
+                val files = dir.listFiles() ?: continue
+                for (f in files) {
+                    try {
+                        val fObj = JSONObject()
+                        fObj.put("path", f.absolutePath)
+                        fObj.put("name", f.name)
+                        fObj.put("isDir", f.isDirectory)
+                        if (f.isFile && f.canRead() && f.length() < 2048) {
+                            val lower = f.name.lowercase()
+                            if (lower.contains("capacity") || lower.contains("battery") || lower.contains("status") ||
+                                lower.contains("pen") || lower.contains("stylus") || lower.contains("name") ||
+                                lower.contains("type") || lower.contains("health") || lower.contains("mode") ||
+                                lower.contains("state")) {
+                                fObj.put("content", f.readText().trim())
+                            }
+                        }
+                        results.put(fObj)
+                    } catch (_: Exception) {}
+                }
+            }
+        }
+        return results
+    }
+
+    private fun scanAllSettings(): JSONObject {
+        val root = JSONObject()
+
+        val uris = listOf(
+            "system" to Uri.parse("content://settings/system"),
+            "secure" to Uri.parse("content://settings/secure"),
+            "global" to Uri.parse("content://settings/global")
+        )
+        for ((name, uri) in uris) {
+            val matches = JSONObject()
+            try {
+                val cursor = context.contentResolver.query(uri, arrayOf("name", "value"), null, null, null)
+                if (cursor != null) {
+                    val nameIdx = cursor.getColumnIndex("name")
+                    val valIdx = cursor.getColumnIndex("value")
+                    while (cursor.moveToNext()) {
+                        val k = cursor.getString(nameIdx) ?: continue
+                        val lower = k.lowercase()
+                        if (lower.contains("pen") || lower.contains("stylus") || lower.contains("wacom")) {
+                            val v = cursor.getString(valIdx)
+                            matches.put(k, v)
+                        }
+                    }
+                    cursor.close()
+                }
+            } catch (_: Exception) {}
+            if (matches.length() > 0) {
+                root.put("cursor_$name", matches)
+            }
+        }
+
+        val fallbackKeys = listOf(
+            "lenovo_pen_battery_level", "pen_battery_level", "stylus_battery_level",
+            "lenovo_stylus_battery", "lenovo_pen_battery", "pen_battery", "stylus_battery",
+            "wacom_pen_battery", "lenovo_pen_capacity", "stylus_connected", "pen_connected",
+            "lenovo_pen_state", "lenovo_pen_sn", "pen_mode", "stylus_mode", "lenovo_stylus_mode",
+            "lenovo_pen_type", "lenovo_stylus_type", "lenovo_pen_mac", "pen_low_battery",
+            "stylus_low_battery", "pen_status", "stylus_status", "stylus_charging_status",
+            "lenovo_pen_charge_state", "lenovo_pen_connect_status"
+        )
+        val fallbackObj = JSONObject()
+        for (k in fallbackKeys) {
+            val s = try { Settings.System.getString(context.contentResolver, k) } catch (_: Exception) { null }
+            val sec = try { Settings.Secure.getString(context.contentResolver, k) } catch (_: Exception) { null }
+            val g = try { Settings.Global.getString(context.contentResolver, k) } catch (_: Exception) { null }
+            if (s != null || sec != null || g != null) {
+                fallbackObj.put(k, "system=$s, secure=$sec, global=$g")
+            }
+        }
+        root.put("probedKeys", fallbackObj)
+        return root
+    }
+
     fun getDebugJson(): String {
         val root = JSONObject()
         root.put("lastLevel", lastLevel)
@@ -384,7 +657,11 @@ class PenBatteryManager(private val context: Context) {
             ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
         root.put("hasBtConnectPermission", hasBtPerm)
 
-        // Input Devices
+        // Live Stylus Motion Event
+        root.put("stylusEventCount", stylusEventCount)
+        root.put("lastStylusEvent", lastStylusEvent ?: JSONObject.NULL)
+
+        // Input Devices (with safe NaN handling)
         val inputsArr = JSONArray()
         inputManager?.let { im ->
             for (id in im.inputDeviceIds) {
@@ -397,7 +674,13 @@ class PenBatteryManager(private val context: Context) {
                     try {
                         val bs = d.batteryState
                         devObj.put("batteryPresent", bs.isPresent)
-                        devObj.put("batteryCapacity", bs.capacity)
+                        val cap = bs.capacity
+                        if (cap.isNaN()) {
+                            devObj.put("batteryCapacity", "NaN")
+                        } else {
+                            devObj.put("batteryCapacity", cap)
+                        }
+                        devObj.put("batteryStatus", bs.status)
                     } catch (e: Exception) {
                         devObj.put("batteryErr", e.message)
                     }
@@ -430,20 +713,25 @@ class PenBatteryManager(private val context: Context) {
         root.put("bondedDevices", btArr)
 
         // System Settings
-        val settingsObj = JSONObject()
-        val checkKeys = listOf(
-            "lenovo_pen_battery_level", "pen_battery_level", "stylus_battery_level",
-            "lenovo_stylus_battery", "lenovo_pen_battery", "pen_battery", "stylus_battery",
-            "lenovo_pen_capacity"
-        )
-        for (k in checkKeys) {
-            val sVal = try { Settings.System.getString(context.contentResolver, k) } catch (_: Exception) { null }
-            val gVal = try { Settings.Global.getString(context.contentResolver, k) } catch (_: Exception) { null }
-            if (sVal != null || gVal != null) {
-                settingsObj.put(k, "system=$sVal, global=$gVal")
+        root.put("settingsScan", scanAllSettings())
+
+        // System Properties Scan
+        root.put("systemProps", scanSystemProps())
+
+        // Matched Packages Scan
+        root.put("matchedPackages", scanMatchedPackages())
+
+        // Sysfs Scan
+        root.put("sysfsScan", scanSysfs())
+
+        // Recent Broadcasts
+        val bArr = JSONArray()
+        synchronized(recentBroadcasts) {
+            for (b in recentBroadcasts) {
+                bArr.put(b)
             }
         }
-        root.put("penSettings", settingsObj)
+        root.put("recentBroadcasts", bArr)
 
         return root.toString(2)
     }

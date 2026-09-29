@@ -110,6 +110,9 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        if (ev != null) {
+            PenBatteryManager.recordStylusMotionEvent(ev)
+        }
         if (isDimmedState.value) {
             setDimmed(false)
         }
@@ -120,6 +123,13 @@ class MainActivity : ComponentActivity() {
             // Ignored
         }
         return super.dispatchTouchEvent(ev)
+    }
+
+    override fun dispatchGenericMotionEvent(ev: MotionEvent?): Boolean {
+        if (ev != null) {
+            PenBatteryManager.recordStylusMotionEvent(ev)
+        }
+        return super.dispatchGenericMotionEvent(ev)
     }
 
     override fun onStart() {
