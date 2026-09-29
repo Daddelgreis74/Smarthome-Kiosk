@@ -56,12 +56,24 @@ object AppUpdater {
                 var downloadUrl = ""
                 if (json.has("assets")) {
                     val assets = json.getJSONArray("assets")
+                    // Prioritize official release APK "neo-kiosk.apk"
                     for (i in 0 until assets.length()) {
                         val asset = assets.getJSONObject(i)
                         val name = asset.getString("name")
-                        if (name.endsWith(".apk")) {
+                        if (name == "neo-kiosk.apk") {
                             downloadUrl = asset.getString("browser_download_url")
                             break
+                        }
+                    }
+                    // Fallback to any non-debug .apk
+                    if (downloadUrl.isEmpty()) {
+                        for (i in 0 until assets.length()) {
+                            val asset = assets.getJSONObject(i)
+                            val name = asset.getString("name")
+                            if (name.endsWith(".apk") && !name.contains("debug", ignoreCase = true)) {
+                                downloadUrl = asset.getString("browser_download_url")
+                                break
+                            }
                         }
                     }
                 }
